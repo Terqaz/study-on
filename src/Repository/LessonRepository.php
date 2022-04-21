@@ -77,7 +77,7 @@ class LessonRepository extends ServiceEntityRepository
     {
         $query = $this->getEntityManager()->createQuery(
             'SELECT L.id, L.name FROM App\Entity\Lesson L
-            WHERE L.courseId = :courseId
+            WHERE L.course = :courseId
             ORDER BY L.serialNumber ASC'
         )->setParameter('courseId', $courseId);
 

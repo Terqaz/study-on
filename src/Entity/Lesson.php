@@ -19,13 +19,6 @@ class Lesson
     private $id;
 
     /**
-     * @ORM\Column(type="integer")
-     * @ORM\ManyToOne(targetEntity="App\Entity\Course")
-     * @ORM\JoinColumn(name="address_id", referencedColumnName="id")
-     */
-    private $courseId;
-
-    /**
      * @ORM\Column(type="string", length=255)
      */
     private $name;
@@ -41,21 +34,15 @@ class Lesson
      */
     private $serialNumber;
 
+    /**
+     * @ORM\ManyToOne(targetEntity=Course::class, inversedBy="lessons")
+     * @ORM\JoinColumn(nullable=false)
+     */
+    private $course;
+
     public function getId(): ?int
     {
         return $this->id;
-    }
-
-    public function getCourseId(): ?int
-    {
-        return $this->courseId;
-    }
-
-    public function setCourseId(int $courseId): self
-    {
-        $this->courseId = $courseId;
-
-        return $this;
     }
 
     public function getName(): ?string
@@ -90,6 +77,18 @@ class Lesson
     public function setSerialNumber(?int $serialNumber): self
     {
         $this->serialNumber = $serialNumber;
+
+        return $this;
+    }
+
+    public function getCourse(): ?Course
+    {
+        return $this->course;
+    }
+
+    public function setCourse(?Course $course): self
+    {
+        $this->course = $course;
 
         return $this;
     }

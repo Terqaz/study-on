@@ -7,7 +7,7 @@
     <div>{{ lesson.content }}</div>
 
     <br/>
-    <a href="{{ path('app_course_show', {'id': lesson.courseId}) }}">Назад к курсу </a>
-    <a href="{{ path('app_lesson_edit', {'id': lesson.id, 'course_id': lesson.courseId}) }}">Изменить урок</a>
+    <a href="{{ path('app_course_show', {'id': lesson.course.id}) }}">Назад к курсу </a>
+    <a href="{{ path('app_lesson_edit', {'id': lesson.id, 'course_id': lesson.course.id}) }}">Изменить урок</a>
     {{ include('lesson/_delete_form.html.twig') }}
 {% endblock %}

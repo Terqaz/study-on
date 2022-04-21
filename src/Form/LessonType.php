@@ -14,7 +14,14 @@ class LessonType extends AbstractType
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder
-            ->add('courseId', HiddenType::class, ['data' => $options['course_id']])
+            ->add(
+                'course_id',
+                HiddenType::class,
+                [
+                    'data' => $options['course_id'],
+                    'mapped' => false
+                ]
+            )
             ->add('name')
             ->add('content', TextareaType::class)
             ->add('serialNumber');
@@ -24,7 +31,7 @@ class LessonType extends AbstractType
     {
         $resolver->setDefaults([
             'data_class' => Lesson::class,
-            'course_id' => null,
+            'course_id' => 0,
         ]);
         $resolver->setAllowedTypes('course_id', 'int');
     }

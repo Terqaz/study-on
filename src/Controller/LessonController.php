@@ -43,7 +43,7 @@ class LessonController extends AbstractController
 
             return $this->redirectToRoute(
                 'app_course_show',
-                ['id' => $lesson->getCourseId()],
+                ['id' => $lesson->getCourse()->getId()],
                 Response::HTTP_SEE_OTHER
             );
         }
@@ -72,7 +72,7 @@ class LessonController extends AbstractController
         $form = $this->createForm(
             LessonType::class,
             $lesson,
-            ['course_id' => (int)$lesson->getCourseId()]
+            ['course_id' => (int)$lesson->getCourse()->getId()]
         );
         $form->handleRequest($request);
 
@@ -103,7 +103,7 @@ class LessonController extends AbstractController
 
         return $this->redirectToRoute(
             'app_course_show',
-            ['id' => $lesson->getCourseId()],
+            ['id' => $lesson->getCourse()->getId()],
             Response::HTTP_SEE_OTHER
         );
     }

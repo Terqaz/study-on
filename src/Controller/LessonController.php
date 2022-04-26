@@ -2,8 +2,10 @@
 
 namespace App\Controller;
 
+use App\Entity\Course;
 use App\Entity\Lesson;
 use App\Form\LessonType;
+use App\Repository\CourseRepository;
 use App\Repository\LessonRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -15,28 +17,32 @@ use Symfony\Component\Routing\Annotation\Route;
  */
 class LessonController extends AbstractController
 {
-    /**
-     * @Route("/", name="app_lesson_index", methods={"GET"})
-     */
-    public function index(LessonRepository $lessonRepository): Response
-    {
-        return $this->render('lesson/index.html.twig', [
-            'lessons' => $lessonRepository->findAll(),
-        ]);
-    }
+//    /**
+//     * @Route("/", name="app_lesson_index", methods={})
+//     */
+//    public function index(LessonRepository $lessonRepository): Response
+//    {
+//        return $this->render('lesson/index.html.twig', [
+//            'lessons' => $lessonRepository->findAll(),
+//        ]);
+//    }
 
     /**
      * @Route("/new", name="app_lesson_new", methods={"GET", "POST"})
      */
-    public function new(Request $request, LessonRepository $lessonRepository): Response
+    public function new(Request $request, LessonRepository $lessonRepository, CourseRepository $courseRepository): Response
     {
+        $courseId = (int)$request->query->get('course_id');
         $lesson = new Lesson();
         $form = $this->createForm(
             LessonType::class,
             $lesson,
-            ['course_id' => (int)$request->query->get('course_id')]
+            ['course_id' => $courseId]
         );
         $form->handleRequest($request);
+        $lesson->setCourse(
+            (new Course())->setId($courseId)
+        );
 
         if ($form->isSubmitted() && $form->isValid()) {
             $lessonRepository->add($lesson);
@@ -48,9 +54,12 @@ class LessonController extends AbstractController
             );
         }
 
+        $course = $courseRepository->find($courseId);
+
         return $this->renderForm('lesson/new.html.twig', [
             'lesson' => $lesson,
             'form' => $form,
+            'course' => $course
         ]);
     }
 

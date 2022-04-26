@@ -3,26 +3,28 @@
 {% block title %}Course index{% endblock %}
 
 {% block body %}
-    <h1>Course index</h1>
+    <h1>Курсы</h1>
 
-    <table class="table">
-        <tbody>
-        {% for course in courses %}
-            <tr>
-                <td>
-                    <a href="{{ path('app_course_show', {'id': course.id}) }}">{{ course.name }}</a>
-                </td>
-                <td>{{ course.description }}</td>
-            </tr>
+    <div class="container-fluid">
+        {% for row in courses|batch(2) %}
+            <div class="row justify-content-between mt-3">
+                {% for course in row %}
+                    <div class="card card__my">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ course.name }}</h5>
+                            <p class="card-text">{{ course.description }}</p>
+                            <a class="mt-auto" href="{{ path('app_course_show', {'id': course.id}) }}">Пройти</a>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
         {% else %}
-            <tr>
-                <td colspan="5">no records found</td>
-            </tr>
-        {% endfor %}
-        </tbody>
-    </table>
+            <div>Нет доступных курсов!</div>
+        {% endfor%}
+    </div>
+    <hr>
 
-    <a href="{{ path('app_course_new') }}">Добавить курс</a>
+    <a href="{{ path('app_course_new') }}" class="btn btn-outline-secondary">Добавить курс</a>
 {% endblock %}
 
 

@@ -36,7 +36,7 @@ class Course
     /**
      * @ORM\OneToMany(targetEntity=Lesson::class, mappedBy="course", orphanRemoval=true)
      */
-//    private $lessons;
+    private $lessons;
 
     public function __construct()
     {
@@ -90,33 +90,33 @@ class Course
         return $this;
     }
 
-//    /**
-//     * @return Collection<int, Lesson>
-//     */
-//    public function getLessons(): Collection
-//    {
-//        return $this->lessons;
-//    }
-//
-//    public function addLesson(Lesson $lesson): self
-//    {
-//        if (!$this->lessons->contains($lesson)) {
-//            $this->lessons[] = $lesson;
-//            $lesson->setCourse($this);
-//        }
-//
-//        return $this;
-//    }
-//
-//    public function removeLesson(Lesson $lesson): self
-//    {
-//        if ($this->lessons->removeElement($lesson)) {
-//            // set the owning side to null (unless already changed)
-//            if ($lesson->getCourse() === $this) {
-//                $lesson->setCourse(null);
-//            }
-//        }
-//
-//        return $this;
-//    }
+    /**
+     * @return ArrayCollection
+     */
+    public function getLessons(): ArrayCollection
+    {
+        return $this->lessons;
+    }
+
+    public function addLesson(Lesson $lesson): self
+    {
+        if (!$this->lessons->contains($lesson)) {
+            $this->lessons[] = $lesson;
+            $lesson->setCourse($this);
+        }
+
+        return $this;
+    }
+
+    public function removeLesson(Lesson $lesson): self
+    {
+        if ($this->lessons->removeElement($lesson)) {
+            // set the owning side to null (unless already changed)
+            if ($lesson->getCourse() === $this) {
+                $lesson->setCourse(null);
+            }
+        }
+
+        return $this;
+    }
 }

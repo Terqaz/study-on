@@ -1,13 +1,14 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Edit Course{% endblock %}
+{% block title %}Редактировать курс{% endblock %}
 
 {% block body %}
-    <h1>Edit Course</h1>
+    <h1>Редактировать курс</h1>
 
-    {{ include('course/_form.html.twig', {'button_label': 'Update'}) }}
+    {{ include('course/_form.html.twig', {'button_label': 'Обновить'}) }}
 
-    <a href="{{ path('app_course_index') }}">back to list</a>
-
-    {{ include('course/_delete_form.html.twig') }}
+    <div class="d-flex flex-row gap-1 mt-2">
+        <a class="btn btn-outline-secondary" href="{{ path('app_course_show', {'id': course.id}) }}">Отменить обновление</a>
+        {{ include('course/_delete_form.html.twig') }}
+    </div>
 {% endblock %}

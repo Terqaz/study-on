@@ -1,13 +1,18 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Lesson{% endblock %}
+{% block title %}{{ lesson.name }} | {{ lesson.course.name }} | StudyOn{% endblock %}
 
 {% block body %}
     <h1>{{ lesson.name }}</h1>
-    <div>{{ lesson.content }}</div>
+    <div class="d-flex flex-row gap-1">
+        <p>Курс</p>
+        <a href="{{ path('app_course_show', {'id': lesson.course.id}) }}">{{ lesson.course.name }}</a>
+    </div>
 
-    <br/>
-    <a href="{{ path('app_course_show', {'id': lesson.course.id}) }}">Назад к курсу </a>
-    <a href="{{ path('app_lesson_edit', {'id': lesson.id, 'course_id': lesson.course.id}) }}">Изменить урок</a>
-    {{ include('lesson/_delete_form.html.twig') }}
+    <div class="d-flex flex-row gap-1">
+        <a class="btn btn-outline-secondary" href="{{ path('app_lesson_edit', {'id': lesson.id, 'course_id': lesson.course.id}) }}">Изменить урок</a>
+        {{ include('lesson/_delete_form.html.twig') }}
+    </div>
+
+    <div class="card mt-2 p-3">{{ lesson.content }}</div>
 {% endblock %}

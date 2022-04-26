@@ -1,10 +1,11 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Course{% endblock %}
+{% block title %}{{ course.name }} | StudyOn{% endblock %}
 
 {% block body %}
     <h1>{{ course.name }}</h1>
-    <div>{{ course.description }}</div>
+    <div class="mt-2">{{ course.description }}</div>
+    <h1 class="mt-3">Уроки</h1>
     <ol>
         {% for lesson in lessons %}
             <li>
@@ -12,9 +13,11 @@
             </li>
         {% endfor %}
     </ol>
-    <br/>
-    <a href="{{ path('app_course_index') }}">Назад к списку курсов</a>
-    <a href="{{ path('app_course_edit', {'id': course.id}) }}">Изменить</a>
-    <a href="{{ path('app_lesson_new', {'course_id': course.id}) }}">Добавить урок</a>
-    {{ include('course/_delete_form.html.twig') }}
+    <hr>
+    <div class="d-flex flex-row gap-1">
+        <a class="btn btn-outline-secondary" href="{{ path('app_course_index') }}">Назад к списку курсов</a>
+        <a class="btn btn-outline-secondary" href="{{ path('app_course_edit', {'id': course.id}) }}">Изменить</a>
+        <a class="btn btn-outline-secondary" href="{{ path('app_lesson_new', {'course_id': course.id}) }}">Добавить урок</a>
+        {{ include('course/_delete_form.html.twig') }}
+    </div>
 {% endblock %}

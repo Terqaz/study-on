@@ -35,7 +35,8 @@ class Lesson
     private $serialNumber;
 
     /**
-     * @ORM\ManyToOne(targetEntity=Course::class, inversedBy="lessons")
+     * @ORM\ManyToOne(targetEntity=Course::class, inversedBy="lessons", cascade={"persist"})
+//     * @ORM\JoinColumn(nullable=false, name="course_id", referencedColumnName="id")
      * @ORM\JoinColumn(nullable=false)
      */
     private $course;

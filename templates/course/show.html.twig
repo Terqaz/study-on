@@ -7,7 +7,7 @@
     <div class="mt-2">{{ course.description }}</div>
     <h1 class="mt-3">Уроки</h1>
     <ol>
-        {% for lesson in lessons %}
+        {% for lesson in course.lessons %}
             <li>
                 <a href="{{ path('app_lesson_show', {'id': lesson.id}) }}">{{ lesson.name }}</a>
             </li>

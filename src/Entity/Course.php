@@ -5,6 +5,7 @@ namespace App\Entity;
 use App\Repository\CourseRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\Mapping as ORM;
+use Doctrine\ORM\PersistentCollection;
 
 /**
  * @ORM\Entity(repositoryClass=CourseRepository::class)
@@ -91,9 +92,9 @@ class Course
     }
 
     /**
-     * @return ArrayCollection
+     * @return PersistentCollection
      */
-    public function getLessons(): ArrayCollection
+    public function getLessons(): PersistentCollection
     {
         return $this->lessons;
     }

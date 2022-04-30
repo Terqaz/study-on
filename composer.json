@@ -4,7 +4,7 @@
     "minimum-stability": "stable",
     "prefer-stable": true,
     "require": {
-        "php": ">=7.2.5",
+        "php": ">=7.2.5 | <=7.4.28",
         "ext-ctype": "*",
         "ext-iconv": "*",
         "doctrine/annotations": "^1.0",
@@ -57,6 +57,9 @@
         "symfony/web-profiler-bundle": "5.4.*"
     },
     "config": {
+        "platform": {
+            "php": "7.4.28"
+        },
         "allow-plugins": {
             "composer/package-versions-deprecated": true,
             "symfony/flex": true,

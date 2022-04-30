@@ -1,7 +1,6 @@
-index:
+main:
     path: /
     controller: Symfony\Bundle\FrameworkBundle\Controller\RedirectController
     defaults:
         route: 'app_course_index'
         permanent: true
-

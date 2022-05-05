@@ -2,11 +2,13 @@
 
 namespace App\Tests\Controller;
 
+use App\Entity\Course;
 use App\Tests\AbstractTest;
 
 class CourseControllerTest extends AbstractTest
 {
     protected const CREATE_COURSE_BUTTON_TEXT = 'Создать курс';
+    protected const ADD_COURSE_BUTTON_TEXT = 'Добавить курс';
 
     public function testRedirectToCourses(): void
     {
@@ -20,41 +22,65 @@ class CourseControllerTest extends AbstractTest
         self::assertRouteSame('app_course_index');
     }
 
-    public function testGetCourse(): void
+    public function testGetCoursesIndex(): void
     {
         $client = static::getClient();
-        $client->request('GET', '/courses/34636643');
-        $this->assertResponseCode(404);
+        $client->followRedirects();
 
-        $client->request('GET', '/courses/sdsb');
-        $this->assertResponseCode(500);
+        $crawler = $client->request('GET', '/courses');
+        $this->assertResponseOk();
+
+        // Проверка количества курсов
+        self::assertEquals(
+            self::getEntityManager()->getRepository(Course::class)->count([]),
+            $crawler->filter(".card")->count()
+        );
+    }
+
+    public function testShowCourse(): void
+    {
+        $client = static::getClient();
+        $client->followRedirects();
 
         $crawler = $client->request('GET', '/courses/1');
         $this->assertResponseOk();
-        self::assertEquals(3, $crawler->filter('ol li')->count());
-    }
 
-//    public function testGetCoursesIndex(): void //TODO
-//    {
-//        $this->setUp();
-//        $client = static::getClient();
-//        $crawler = $client->request('GET', '/courses');
-//
-//        self::assertEquals(3, $crawler->filter(".card")->count());
-//        $this->tearDown();
-//    }
+        // Проверка заголовка
+        self::assertEquals(
+            'Программирование на Python',
+            $crawler->filter('h1')->text()
+        );
+        // Проверка количества выведенных уроков курса
+        $lessons = static::getEntityManager()
+            ->getRepository(Course::class)
+            ->find(1)
+            ->getLessons();
+        self::assertEquals($lessons->count(), $crawler->filter('ol li')->count());
+
+        // Если несуществующий айдишник
+        $client->request('GET', '/courses/34636643');
+        $this->assertResponseCode(404);
+
+        // Если вместо айдишника буквы
+        $client->request('GET', '/courses/sdsb');
+        $this->assertResponseCode(500);
+    }
 
     public function testGetNewCourseForm(): void
     {
         $client = static::getClient();
+        $client->followRedirects();
 
-        $crawler = $client->request('GET', '/courses/new');  //app_course_new
+        $client->request('GET', '/courses/');  //app_course_new
+        $crawler = $client->clickLink(self::ADD_COURSE_BUTTON_TEXT);
         $this->assertResponseOk();
 
         $form = $crawler
             ->selectButton(self::CREATE_COURSE_BUTTON_TEXT)
             ->form();
 
+        // Проверка присутствия полей
+        self::assertFalse($form->has('course[id]'));
         self::assertTrue($form->has('course[code]'));
         self::assertTrue($form->has('course[name]'));
         self::assertTrue($form->has('course[description]'));
@@ -66,58 +92,121 @@ class CourseControllerTest extends AbstractTest
     public function testSubmitNewCourse(): void
     {
         $client = static::getClient();
+        $client->followRedirects();
 
-        // Форма с ошибкой
-        $client->request('GET', '/courses/new');  //app_course_new
+        $courseRepository = self::getEntityManager()->getRepository(Course::class);
+        $oldCount = $courseRepository->count([]);
+
+        $client->request('GET', '/courses');
+        $client->clickLink(self::ADD_COURSE_BUTTON_TEXT);
+
+        // Если не указан код
         $crawler = $client->submitForm(self::CREATE_COURSE_BUTTON_TEXT, [
-            'course[code]' => 'test',
-//            'course[name]' => 'Тестовый курс',
+            'course[name]' => 'Тестовый курс',
             'course[description]' => 'Описание тестового курса'
         ]);
         $this->assertResponseCode(500);
 
-        // Правильная форма
-        $client->request('GET', '/courses/new');  //app_course_new
-        $client->submitForm(self::CREATE_COURSE_BUTTON_TEXT, [
+        // Если не указано имя
+        $client->back();
+        $crawler = $client->submitForm(self::CREATE_COURSE_BUTTON_TEXT, [
             'course[code]' => 'test',
-            'course[name]' => 'Тестовый курс',
             'course[description]' => 'Описание тестового курса'
         ]);
-        $this->assertResponseRedirect();
-        $client->followRedirect();
+        $this->assertResponseCode(500);
+
+        // Если не указано описание
+        $client->back();
+        $crawler = $client->submitForm(self::CREATE_COURSE_BUTTON_TEXT, [
+            'course[code]' => 'test-1',
+            'course[name]' => 'Тестовый курс1'
+        ]);
+        $this->assertResponseOk();  // нет ошибки
+        self::assertRouteSame('app_course_index');
+
+        // Указано всё
+        $client->back();
+        $client->submitForm(self::CREATE_COURSE_BUTTON_TEXT, [
+            'course[code]' => 'test-2',
+            'course[name]' => 'Тестовый курс 2',
+            'course[description]' => 'Описание тестового курса 2'
+        ]);
         $this->assertResponseOk();
+
+        // Создание курса с тем же кодом невозможно
+        $client->back();
+        $client->submitForm(self::CREATE_COURSE_BUTTON_TEXT, [
+            'course[code]' => 'test-2',
+            'course[name]' => 'Тестовый курс 3',
+            'course[description]' => 'Описание тестового курса 3'
+        ]);
+        $this->assertResponseCode(500);
+
+        // В итоге добавилось 2 курса
+        self::assertEquals($oldCount + 2, $courseRepository->count([]));
+    }
+
+    /**
+     * @depends testShowCourse
+     */
+    public function testEditCourse(): void
+    {
+        $client = static::getClient();
+        $client->followRedirects();
+        $courseRepository = self::getEntityManager()->getRepository(Course::class);
+
+        $client->request('GET', '/courses/1');
+        $this->assertResponseOk();
+        $crawler = $client->clickLink(self::CHANGE_BUTTON_TEXT);
+
+        // Кнопка обновления не привязана к форме, поэтому получим её по-другому
+        $form = $crawler->filter('form')->first()->form();
+
+        // Проверка заполненненных полей
+        $values = $form->getValues();
+        $courseId = 1;
+        $course = $courseRepository->find($courseId);
+        self::assertEquals($course->getCode(), $values['course[code]']);
+        self::assertEquals($course->getName(), $values['course[name]']);
+        self::assertEquals($course->getDescription(), $values['course[description]']);
+
+        $code = 'test';
+        $name = 'Тестовый курс';
+        $description = 'Описание тестового курса';
+
+        // Сохранение обновленного курса
+        $form['course[code]'] = $code;
+        $form['course[name]'] = $name;
+        $form['course[description]'] = $description;
+        $client->clickLink(self::UPDATE_BUTTON_TEXT);
+
+        $this->assertResponseOk();
+        self::assertRouteSame('app_course_index');
+
+        // Проверка сохраненного курса
+        $course = $courseRepository->find($courseId);
+        self::assertEquals($code, $course->getCode());
+        self::assertEquals($name, $course->getName());
+        self::assertEquals($description, $course->getDescription());
+    }
+
+    /**
+     * @depends testShowCourse
+     */
+    public function testDeleteCourse(): void
+    {
+        $client = static::getClient();
+        $client->followRedirects();
+        $courseRepository = self::getEntityManager()->getRepository(Course::class);
+
+        $client->request('GET', '/courses/1');
+        $client->submitForm('Удалить');
+        $this->assertResponseOk();
+        self::assertRouteSame('app_course_index');
+
+        self::assertNull($courseRepository->find(1));
     }
 }
-
-//        $client->request('GET', '/courses/1');  //app_course_show
-//        $this->assertResponseOk();
-//
-//        $client->request('GET', '/courses/1/edit');  //app_course_edit
-//        $this->assertResponseOk();
-//
-//        $client->request('POST', '/courses/1/edit');  //app_course_edit
-//        $this->assertResponseOk();
-//
-//        $client->request('POST', '/courses/1');  //app_course_delete
-//        $this->assertResponseOk();
-//
-//        $client->request('GET', '/lessons/new');  //app_lesson_new
-//        $this->assertResponseOk();
-//
-//        $client->request('POST', '/lessons/new');  //app_lesson_new
-//        $this->assertResponseOk();
-//
-//        $client->request('GET', '/lessons/1');  //app_lesson_show
-//        $this->assertResponseOk();
-//
-//        $client->request('GET', '/lessons/1/edit');  //app_lesson_edit
-//        $this->assertResponseOk();
-//
-//        $client->request('POST', '/lessons/1/edit');  //app_lesson_edit
-//        $this->assertResponseOk();
-//
-//        $client->request('POST', '/lessons/1');  //app_lesson_delete
-//        $this->assertResponseOk();
 
 // 1. Проверить для всех GET/POST экшенов контроллеров, что возвращается корректный http-статус
 // 2. В GET-методах проверить, что возвращается то, что ожидается (например, список курсов в нужном количестве, страница

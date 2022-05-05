@@ -5,11 +5,7 @@ declare(strict_types=1);
 namespace App\Tests;
 
 //use App\Tests\Client;
-use Doctrine\Common\DataFixtures\Executor\ORMExecutor;
-use Doctrine\Common\DataFixtures\Loader;
-use Doctrine\Common\DataFixtures\Purger\ORMPurger;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
-use Symfony\Component\DependencyInjection\ContainerAwareInterface;
 use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -18,29 +14,33 @@ abstract class AbstractTest extends WebTestCase
 //    /** @var Client */
     protected static $client;
 
+    protected const CHANGE_BUTTON_TEXT = 'Изменить';
+    protected const UPDATE_BUTTON_TEXT = 'Обновить';
+    protected const DELETE_BUTTON_TEXT = 'Удалить';
+
     protected static function getClient($reinitialize = false, array $options = [], array $server = [])
     {
-        if (!static::$client || $reinitialize) {
+//        if (!static::$client || $reinitialize) {
             static::$client = static::createClient($options, $server);
-        }
+//        }
 
         // core is loaded (for tests without calling of getClient(true))
-        static::$client->getKernel()->boot();
+//        static::$client->getKernel()->boot();
 
         return static::$client;
     }
 
-    protected function setUp(): void
-    {
-        static::getClient();
-        $this->loadFixtures($this->getFixtures());
-    }
+//    protected function setUp(): void
+//    {
+//        static::getClient();
+////        $this->loadFixtures($this->getFixtures());
+//    }
 
-    final protected function tearDown(): void
-    {
-        parent::tearDown();
-        static::$client = null;
-    }
+//    final protected function tearDown(): void
+//    {
+//        parent::tearDown();
+//        static::$client = null;
+//    }
 
     /**
      * Shortcut
@@ -50,38 +50,34 @@ abstract class AbstractTest extends WebTestCase
         return static::getContainer()->get('doctrine')->getManager();
     }
 
-    /**
-     * List of fixtures for certain test
-     */
-    protected function getFixtures(): array
-    {
-        return [];
-    }
+//    Тестовые данные загрузятся из БД.
+//    После каждого теста состояние БД откатывается с помощью dama/doctrine-test-bundle
+//    abstract protected function getFixtures(): array;
 
     /**
      * Load fixtures before test
      */
-    protected function loadFixtures(array $fixtures = [])
-    {
-        $loader = new Loader();
-
-        foreach ($fixtures as $fixture) {
-            if (!\is_object($fixture)) {
-                $fixture = new $fixture();
-            }
-
-            if ($fixture instanceof ContainerAwareInterface) {
-                $fixture->setContainer(static::getContainer());
-            }
-
-            $loader->addFixture($fixture);
-        }
-
-        $em = static::getEntityManager();
-        $purger = new ORMPurger($em);
-        $executor = new ORMExecutor($em, $purger);
-        $executor->execute($loader->getFixtures());
-    }
+//    protected function loadFixtures(array $fixtures = [])
+//    {
+//        $loader = new Loader();
+//
+//        foreach ($fixtures as $fixture) {
+//            if (!\is_object($fixture)) {
+//                $fixture = new $fixture();
+//            }
+//
+//            if ($fixture instanceof ContainerAwareInterface) {
+//                $fixture->setContainer(static::getContainer());
+//            }
+//
+//            $loader->addFixture($fixture);
+//        }
+//
+//        $em = static::getEntityManager();
+//        $purger = new ORMPurger($em);
+//        $executor = new ORMExecutor($em, $purger);
+//        $executor->execute($loader->getFixtures());
+//    }
 
     public function assertResponseOk(?Response $response = null, ?string $message = null, string $type = 'text/html')
     {

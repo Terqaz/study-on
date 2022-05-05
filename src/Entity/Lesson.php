@@ -29,14 +29,13 @@ class Lesson
     private $content;
 
     /**
-     * @ORM\Column(type="integer")
+     * @ORM\Column(type="integer", nullable=true)
      * @Assert\LessThanOrEqual(10000)
      */
     private $serialNumber;
 
     /**
      * @ORM\ManyToOne(targetEntity=Course::class, inversedBy="lessons", cascade={"persist"})
-//     * @ORM\JoinColumn(nullable=false, name="course_id", referencedColumnName="id")
      * @ORM\JoinColumn(nullable=false)
      */
     private $course;

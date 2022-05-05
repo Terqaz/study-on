@@ -5,7 +5,7 @@
 {% block body %}
     <h1>Edit Lesson</h1>
 
-    {{ include('lesson/_form.html.twig', {'button_label': 'Update'}) }}
+    {{ include('lesson/_form.html.twig', {'button_label': 'Обновить'}) }}
 
     <div class="d-flex flex-row gap-1 mt-2">
         <a class="btn btn-outline-secondary" href="{{ path('app_lesson_show', {'id': lesson.id}) }}">Отменить обновление</a>

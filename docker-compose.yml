@@ -14,8 +14,6 @@ services:
     links:
       - php
   postgres:
-    ports:  #Нельзя использовать проброс портов на реальном проекте
-      - "127.0.0.1:5432:5432"
     image: postgres:alpine
     volumes:
       - postgres:/var/lib/postgresql/data
@@ -42,3 +40,7 @@ services:
     volumes:
       - ${PWD}:/app
       - ${HOME}/.yarn:/yarn
+networks:
+  default:
+    external:
+      name: study-onbilling_default

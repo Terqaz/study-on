@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -16,13 +16,31 @@
         {% endblock %}
     </head>
     <body>
-        <div class="container-fluid px-3">
-            <div class="container-fluid bg-secondary bg-opacity-10">
-                <h4 class="p-3">StudyOn</h4>
-            </div>
-            <div class="container-fluid ">
-                {% block body %}{% endblock %}
-            </div>
+        <header class="d-flex flex-wrap justify-content-center align-items-center p-2 px-5 mb-4 border-bottom">
+            <a href="{{ path('app_course_index') }}" class="mb-3 mb-md-0 me-md-auto text-decoration-none text-black">
+                <h3>QA - сервис вопросов и ответов</h3>
+            </a>
+            <ul class="nav nav-pills align-items-center">
+                {% if app.user %}
+                    <li class="nav-item" style="margin-right: 10px;">
+                        <h4 class="m-md-0"> Привет, {{ app.user.email }} </h4>
+                    </li>
+                    <li class="nav-item"><a href="{{ path('app_logout') }}" class="btn btn-primary">
+                        Выход
+                    </a></li>
+                {% else %}
+                    <li class="nav-item"><a href="{{ path('app_login') }}" class="btn btn-primary">
+                        Вход
+                    </a></li>
+{#                    <li class="nav-item"><a href="{{ path('app_register') }}" class="btn btn-secondary">#}
+{#                        Регистрация#}
+{#                    </a></li>#}
+                {% endif %}
+
+            </ul>
+        </header>
+        <div class="container-fluid px-5">
+            {% block body %}{% endblock %}
         </div>
     </body>
 </html>

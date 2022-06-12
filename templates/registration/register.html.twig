@@ -1,0 +1,22 @@
+
+{% extends 'base.html.twig' %}
+
+{% block title %}Регистрация | StudyOn{% endblock %}
+
+{% block body %}
+    <div class="container" style="max-width: 400px;">
+        {% if error %}
+            <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+
+        <h3>Регистрация</h3>
+        {{ form_start(registrationForm) }}
+
+        {{ form_row(registrationForm.email) }}
+        {{ form_row(registrationForm.password.first) }}
+        {{ form_row(registrationForm.password.second) }}
+
+        <button type="submit" class="btn btn-primary">Зарегистрироваться</button>
+        {{ form_end(registrationForm) }}
+    </div>
+{% endblock %}

@@ -25,16 +25,19 @@
                     <li class="nav-item" style="margin-right: 10px;">
                         <h4 class="m-md-0"> Привет, {{ app.user.email }} </h4>
                     </li>
-                    <li class="nav-item"><a href="{{ path('app_logout') }}" class="btn btn-primary">
-                        Выход
-                    </a></li>
+                    <li class="nav-item"><a href="{{ path('app_profile_show') }}" class="btn btn-primary">
+                            Профиль
+                        </a></li>
+                    <li class="nav-item"><a href="{{ path('app_logout') }}" class="btn btn-outline-primary ms-2">
+                            Выход
+                        </a></li>
                 {% else %}
                     <li class="nav-item"><a href="{{ path('app_login') }}" class="btn btn-primary">
-                        Вход
-                    </a></li>
-{#                    <li class="nav-item"><a href="{{ path('app_register') }}" class="btn btn-secondary">#}
-{#                        Регистрация#}
-{#                    </a></li>#}
+                            Вход
+                        </a></li>
+                    <li class="nav-item"><a href="{{ path('app_register') }}" class="btn btn-outline-primary ms-2">
+                            Регистрация
+                        </a></li>
                 {% endif %}
 
             </ul>

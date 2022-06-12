@@ -36,7 +36,7 @@ class BillingClient
         $response = $this->jsonRequest(
             self::POST,
             '/auth',
-            json_encode($credentials, JSON_THROW_ON_ERROR),
+            $credentials
         );
         if ($response['code'] === 401) {
             throw new CustomUserMessageAuthenticationException('Неправильные логин или пароль');
@@ -55,13 +55,17 @@ class BillingClient
      */
     public function register(array $credentials): string
     {
-        $this->request(
+        $response = $this->jsonRequest(
             self::POST,
             '/register',
-            json_encode($credentials, JSON_THROW_ON_ERROR),
+            $credentials
         );
 
-        return ''; //TODO
+        if ($response['code'] >= 400) {
+            throw new BillingUnavailableException();
+        }
+
+        return json_decode($response['body'], true, 512, JSON_THROW_ON_ERROR)['token'];
     }
 
     /**
@@ -83,7 +87,7 @@ class BillingClient
         if ($response['code'] >= 400) {
             throw new BillingUnavailableException();
         }
-//        dd($response);
+
         $userDto = $this->serializer->deserialize($response['body'], UserDto::class, 'json');
         $errors = $this->validator->validate($userDto);
         if (count($errors) > 0) {
@@ -94,20 +98,21 @@ class BillingClient
 
     /**
      * @throws BillingUnavailableException
+     * @throws JsonException
      */
-    protected function jsonRequest(string $method, string $path, $body, array $headers = []): array
+    protected function jsonRequest(string $method, string $path, $data, array $headers = []): array
     {
         $headers['Accept'] = 'application/json';
         $headers['Content-Type'] = 'application/json';
-        return $this->request($method, $path, $body, $headers);
+        return $this->request($method, $path, json_encode($data, JSON_THROW_ON_ERROR), $headers);
     }
 
     /**
      * @param string $method - HTTP method
      * @param string $path - path, relative to billing host
-     * @param string|array $body - HTTP body. Sets in HTTP only if method is POST
+     * @param string|array $body - HTTP body. Sets in request only if method is POST
      * @param array $headers - HTTP headers
-     * @return array - raw response
+     * @return array - response code and body
      * @throws BillingUnavailableException
      */
     protected function request(string $method, string $path, $body, array $headers = []): array

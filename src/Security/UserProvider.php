@@ -16,9 +16,6 @@ class UserProvider implements UserProviderInterface, PasswordUpgraderInterface
 {
     private BillingClient $billingClient;
 
-    /**
-     * @param BillingClient $billingClient
-     */
     public function __construct(BillingClient $billingClient)
     {
         $this->billingClient = $billingClient;

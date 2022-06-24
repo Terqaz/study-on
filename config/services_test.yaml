@@ -1,0 +1,5 @@
+services:
+    App\Service\BillingClient:
+        public: true
+        arguments:
+          [ '@debug.validator' ]

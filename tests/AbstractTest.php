@@ -4,43 +4,44 @@ declare(strict_types=1);
 
 namespace App\Tests;
 
-//use App\Tests\Client;
+use App\Dto\UserDto;
+use App\Service\BillingClient;
+use App\Tests\Mock\BillingClientMock;
+use Exception;
+use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\BrowserKit\AbstractBrowser;
 use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Security\Core\Exception\CustomUserMessageAuthenticationException;
+use function count;
+use function is_int;
 
 abstract class AbstractTest extends WebTestCase
 {
-//    /** @var Client */
-    protected static $client;
+    public const ADMIN_PASSWORD = 'admin_password';
+    public const USER_PASSWORD = 'user_password';
+    public const USER_EMAIL = 'user@example.com';
+    public const ADMIN_EMAIL = 'admin@example.com';
 
-    protected const CHANGE_BUTTON_TEXT = 'Изменить';
-    protected const UPDATE_BUTTON_TEXT = 'Обновить';
-    protected const DELETE_BUTTON_TEXT = 'Удалить';
+    protected static KernelBrowser $client;
 
-    protected static function getClient($reinitialize = false, array $options = [], array $server = [])
+    protected function setUp(): void
     {
-//        if (!static::$client || $reinitialize) {
-            static::$client = static::createClient($options, $server);
-//        }
+        static::$client = static::createClient();
+    }
+
+    protected static function getClient($reinitialize = false): KernelBrowser
+    {
+        if ($reinitialize) {
+            static::$client = static::createClient();
+        }
 
         // core is loaded (for tests without calling of getClient(true))
 //        static::$client->getKernel()->boot();
 
         return static::$client;
     }
-
-//    protected function setUp(): void
-//    {
-//        static::getClient();
-////        $this->loadFixtures($this->getFixtures());
-//    }
-
-//    final protected function tearDown(): void
-//    {
-//        parent::tearDown();
-//        static::$client = null;
-//    }
 
     /**
      * Shortcut
@@ -49,35 +50,6 @@ abstract class AbstractTest extends WebTestCase
     {
         return static::getContainer()->get('doctrine')->getManager();
     }
-
-//    Тестовые данные загрузятся из БД.
-//    После каждого теста состояние БД откатывается с помощью dama/doctrine-test-bundle
-//    abstract protected function getFixtures(): array;
-
-    /**
-     * Load fixtures before test
-     */
-//    protected function loadFixtures(array $fixtures = [])
-//    {
-//        $loader = new Loader();
-//
-//        foreach ($fixtures as $fixture) {
-//            if (!\is_object($fixture)) {
-//                $fixture = new $fixture();
-//            }
-//
-//            if ($fixture instanceof ContainerAwareInterface) {
-//                $fixture->setContainer(static::getContainer());
-//            }
-//
-//            $loader->addFixture($fixture);
-//        }
-//
-//        $em = static::getEntityManager();
-//        $purger = new ORMPurger($em);
-//        $executor = new ORMExecutor($em, $purger);
-//        $executor->execute($loader->getFixtures());
-//    }
 
     public function assertResponseOk(?Response $response = null, ?string $message = null, string $type = 'text/html')
     {
@@ -128,7 +100,7 @@ abstract class AbstractTest extends WebTestCase
             $crawler = new Crawler();
             $crawler->addContent($response->getContent(), $type);
 
-            if (!\count($crawler->filter('title'))) {
+            if (!count($crawler->filter('title'))) {
                 $add = '';
                 $content = $response->getContent();
 
@@ -143,7 +115,7 @@ abstract class AbstractTest extends WebTestCase
             } else {
                 $title = $crawler->filter('title')->text();
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $title = $e->getMessage();
         }
 
@@ -165,14 +137,14 @@ abstract class AbstractTest extends WebTestCase
         }
 
         try {
-            if (\is_int($func)) {
+            if (is_int($func)) {
                 $this->assertEquals($func, $response->getStatusCode());
             } else {
                 $this->assertTrue($response->{$func}());
             }
 
             return;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // nothing to do
         }
 
@@ -204,5 +176,82 @@ abstract class AbstractTest extends WebTestCase
     private function makeErrorOneLine($text)
     {
         return preg_replace('#[\n\r]+#', ' ', $text);
+    }
+
+    private static array $usersByEmail = [
+        self::USER_EMAIL => [self::USER_PASSWORD, 'user_token'],
+        self::ADMIN_EMAIL => [self::ADMIN_PASSWORD, 'admin_token']
+    ];
+
+    protected function mockBillingClient(KernelBrowser $client): void
+    {
+        $client->disableReboot();
+
+        $billingClientMock = $this->getMockBuilder(BillingClient::class)
+            ->disableOriginalConstructor()
+            ->getMock();
+
+        $billingClientMock->method('auth')
+            ->willReturnCallback(static function (array $credentials) {
+                $email = $credentials['username'];
+                if (isset(self::$usersByEmail[$email])) {
+                    return self::$usersByEmail[$email][1];
+                }
+                throw new CustomUserMessageAuthenticationException('Неправильные логин или пароль');
+            });
+
+        $billingClientMock->method('register')
+            ->willReturnCallback(static function (array $credentials) {
+                $email = $credentials['username'];
+                if (isset(self::$usersByEmail[$email])) {
+                    throw new CustomUserMessageAuthenticationException('Пользователь с указанным email уже существует!');
+                }
+                self::$usersByEmail[$email] = [$credentials['password'], 'user_token2'];
+                return 'user_token2';
+            });
+
+        $billingClientMock->method('getCurrent')
+            ->willReturnMap([
+                ['user_token', new UserDto(self::USER_EMAIL, ['ROLE_USER'], 1000)],
+                ['user_token2', new UserDto('test@example.com', ['ROLE_USER'], 0)],
+                ['admin_token', new UserDto(self::ADMIN_EMAIL, ['ROLE_SUPER_ADMIN'], 0)],
+            ]);
+
+        static::getContainer()->set(BillingClient::class, $billingClientMock);
+    }
+
+    protected function authorize(AbstractBrowser $client, string $login, string $password): ?Crawler
+    {
+        $crawler = $client->clickLink('Вход');
+
+        $form = $crawler->filter('form')->first()->form();
+        $form['email'] = $login;
+        $form['password'] = $password;
+
+        $crawler = $client->submit($form);
+        $this->assertResponseOk();
+
+        return $crawler;
+    }
+
+    public function checkProfile(?AbstractBrowser $client, string $email, string $role, string $balance): Crawler
+    {
+        $crawler = $client->clickLink('Профиль');
+        $this->assertResponseOk();
+
+        $profileData = $crawler->filter('td')->each(function ($node, $i) {
+            return $node->text();
+        });
+
+        self::assertEquals($email, $profileData[1]);
+        self::assertEquals($role, $profileData[3]);
+        self::assertEquals($balance, $profileData[5]);
+        return $crawler;
+    }
+
+    // Только для дебага
+    protected static function ddBody(Crawler $crawler): void
+    {
+        dd($crawler->filter('body')->html());
     }
 }

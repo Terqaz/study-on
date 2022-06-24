@@ -23,6 +23,13 @@ class UserDto
      */
     private float $balance;
 
+    public function __construct(string $username, array $roles, float $balance)
+    {
+        $this->username = $username;
+        $this->roles = $roles;
+        $this->balance = $balance;
+    }
+
     /**
      * @return string
      */

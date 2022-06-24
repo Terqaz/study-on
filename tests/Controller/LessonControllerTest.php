@@ -5,19 +5,22 @@ namespace App\Tests\Controller;
 use App\Entity\Course;
 use App\Entity\Lesson;
 use App\Tests\AbstractTest;
+use App\Tests\TestUtils;
 
 class LessonControllerTest extends AbstractTest
 {
-    protected const ADD_LESSON_BUTTON_TEXT = 'Добавить урок';
-    protected const CREATE_LESSON_BUTTON_TEXT = 'Создать урок';
-    protected const CHANGE_LESSON_BUTTON_TEXT = 'Изменить урок';
-
     public function testShowLesson(): void
     {
         $client = static::getClient();
         $client->followRedirects();
 
+        $this->mockBillingClient($client);
+
+        // Вход
+        $client->request('GET', '/');
+        $this->authorize($client, AbstractTest::USER_EMAIL, AbstractTest::USER_PASSWORD);
         $client->request('GET', '/courses/1');
+
         $crawler = $client->clickLink('Операторы. Переменные. Типы данных. Условия');
         $this->assertResponseOk();
 
@@ -39,20 +42,36 @@ class LessonControllerTest extends AbstractTest
     /**
      * @depends testShowLesson
      */
-    public function testGetNewLessonForm(): void
+    public function testShowLessonFailed(): void
+    {
+        $client = static::getClient();
+
+        $this->mockBillingClient($client);
+
+        $client->request('GET', '/courses/1');
+        $client->clickLink('Операторы. Переменные. Типы данных. Условия');
+        self::assertResponseRedirects('/login');
+    }
+
+    public function testSubmitNewLesson(): void
     {
         $client = static::getClient();
         $client->followRedirects();
 
+        $this->mockBillingClient($client);
+
         $courseRepository = self::getEntityManager()->getRepository(Course::class);
         $course = $courseRepository->find(1);
+        $oldCount = $course->getLessons()->count();
 
-        $client->request('GET', '/courses/1');  //app_course_new
-        $crawler = $client->clickLink(self::ADD_LESSON_BUTTON_TEXT);
-        $this->assertResponseOk();
+        $client->request('GET', '/');
+        $this->authorize($client, AbstractTest::ADMIN_EMAIL, AbstractTest::ADMIN_PASSWORD);
+        $client->request('GET', '/courses/1');
+
+        $crawler = $client->clickLink('Добавить урок');
 
         $form = $crawler
-            ->selectButton(self::CREATE_LESSON_BUTTON_TEXT)
+            ->selectButton('Создать урок')
             ->form();
 
         // Проверка присутствия полей
@@ -61,25 +80,9 @@ class LessonControllerTest extends AbstractTest
         self::assertTrue($form->has('lesson[name]'));
         self::assertTrue($form->has('lesson[content]'));
         self::assertTrue($form->has('lesson[serialNumber]'));
-    }
-
-    /**
-     * @depends testGetNewLessonForm
-     */
-    public function testSubmitNewLesson(): void
-    {
-        $client = static::getClient();
-        $client->followRedirects();
-
-        $courseRepository = self::getEntityManager()->getRepository(Course::class);
-        $course = $courseRepository->find(1);
-        $oldCount = $course->getLessons()->count();
-
-        $client->request('GET', '/courses/1');
-        $client->clickLink(self::ADD_LESSON_BUTTON_TEXT);
 
         // Если не указано имя
-        $client->submitForm(self::CREATE_LESSON_BUTTON_TEXT, [
+        $client->submitForm('Создать урок', [
             'lesson[content]' => 'Тестовое описание урока',
             'lesson[serialNumber]' => '4'
         ]);
@@ -87,7 +90,7 @@ class LessonControllerTest extends AbstractTest
 
         // Если не указано описание
         $client->back();
-        $crawler = $client->submitForm(self::CREATE_LESSON_BUTTON_TEXT, [
+        $crawler = $client->submitForm('Создать урок', [
             'lesson[name]' => 'Тестовый урок',
             'lesson[serialNumber]' => '4'
         ]);
@@ -95,7 +98,7 @@ class LessonControllerTest extends AbstractTest
 
         // Все указано правильно и без серийного номера
         $client->back();
-        $client->submitForm(self::CREATE_LESSON_BUTTON_TEXT, [
+        $client->submitForm('Создать урок', [
             'lesson[name]' => 'Тестовый урок',
             'lesson[content]' => 'Тестовое описание урока',
         ]);
@@ -104,7 +107,7 @@ class LessonControllerTest extends AbstractTest
 
         // Все указано правильно
         $client->back();
-        $client->submitForm(self::CREATE_LESSON_BUTTON_TEXT, [
+        $client->submitForm('Создать урок', [
             'lesson[name]' => 'Тестовый урок',
             'lesson[content]' => 'Тестовое описание урока',
             'lesson[serialNumber]' => '1'
@@ -115,6 +118,41 @@ class LessonControllerTest extends AbstractTest
         self::assertEquals($oldCount + 2, $courseRepository->find(1)->getLessons()->count());
     }
 
+    public function testSubmitNewLessonFailed(): void
+    {
+        $client = static::getClient();
+
+        $this->mockBillingClient($client);
+
+        $client->request('GET', '/courses/1');
+
+        // Неавторизован
+        // Без прав админа нет кнопки
+        $this->expectException('InvalidArgumentException');
+        $crawler = $client->clickLink('Добавить урок');
+
+        $client->request('GET', '/lessons/new/');
+        $this->assertResponseCode(403);
+
+        $client->request('POST', '/courses/new/', ['course_id' => 1]);
+        self::assertResponseRedirects('/login');
+
+        // Авторизован как обычный пользователь
+        $client->followRedirects();
+        $crawler = $client->request('GET', '/courses/1');
+        $this->authorize($client, AbstractTest::USER_EMAIL, AbstractTest::USER_PASSWORD);
+
+        // Без прав админа нет кнопки
+        $this->expectException('InvalidArgumentException');
+        $crawler = $client->clickLink('Добавить урок');
+
+        $client->request('GET', '/lessons/new');
+        $this->assertResponseCode(403);
+
+        $client->request('POST', '/courses/new', ['course_id' => 1]);
+        $this->assertResponseCode(403);
+    }
+
     /**
      * @depends testShowLesson
      */
@@ -122,11 +160,16 @@ class LessonControllerTest extends AbstractTest
     {
         $client = static::getClient();
         $client->followRedirects();
+
+        $this->mockBillingClient($client);
+
         $lessonRepository = self::getEntityManager()->getRepository(Lesson::class);
 
+        $client->request('GET', '/');
+        $this->authorize($client, AbstractTest::ADMIN_EMAIL, AbstractTest::ADMIN_PASSWORD);
         $client->request('GET', '/lessons/1');
 
-        $crawler = $client->clickLink(self::CHANGE_LESSON_BUTTON_TEXT);
+        $crawler = $client->clickLink('Изменить урок');
 
         // Кнопка обновления не привязана к форме, поэтому получим форму по-другому
         $form = $crawler->filter('form')->first()->form();
@@ -150,7 +193,8 @@ class LessonControllerTest extends AbstractTest
         $form['lesson[name]'] = $name;
         $form['lesson[content]'] = $content;
         $form['lesson[serialNumber]'] = $serialNumber;
-        $client->clickLink(self::UPDATE_BUTTON_TEXT);
+        $client->submit($form);
+
         $this->assertResponseOk();
         self::assertRouteSame('app_lesson_show');
 
@@ -162,6 +206,41 @@ class LessonControllerTest extends AbstractTest
         self::assertEquals($serialNumber, $lesson->getSerialNumber());
     }
 
+    public function testEditLessonFailed(): void
+    {
+        $client = static::getClient();
+
+        $this->mockBillingClient($client);
+
+        $client->request('GET', '/lessons/1');
+
+        // Неавторизован
+        // Без прав админа нет кнопки
+        $this->expectException('InvalidArgumentException');
+        $crawler = $client->clickLink('Изменить урок');
+
+        $client->request('GET', '/lessons/1/edit');
+        $this->assertResponseCode(403);
+
+        $client->request('POST', '/courses/1/edit', ['course_id' => 1]);
+        self::assertResponseRedirects('/login');
+
+        // Авторизован как обычный пользователь
+        $client->followRedirects();
+        $crawler = $client->request('GET', '/lessons/1');
+        $this->authorize($client, AbstractTest::USER_EMAIL, AbstractTest::USER_PASSWORD);
+
+        // Без прав админа нет кнопки
+        $this->expectException('InvalidArgumentException');
+        $crawler = $client->clickLink('Изменить урок');
+
+        $client->request('GET', '/lessons/1/edit');
+        $this->assertResponseCode(403);
+
+        $client->request('POST', '/courses/1/edit', ['course_id' => 1]);
+        $this->assertResponseCode(403);
+    }
+
     /**
      * @depends testShowLesson
      */
@@ -169,18 +248,49 @@ class LessonControllerTest extends AbstractTest
     {
         $client = static::getClient();
         $client->followRedirects();
+
+        $this->mockBillingClient($client);
+
         $lessonRepository = self::getEntityManager()->getRepository(Lesson::class);
 
+        $client->request('GET', '/');
+        $this->authorize($client, AbstractTest::ADMIN_EMAIL, AbstractTest::ADMIN_PASSWORD);
         $client->request('GET', '/lessons/1');
-        $client->submitForm(self::DELETE_BUTTON_TEXT);
+        $client->submitForm('Удалить');
         $this->assertResponseOk();
 
         self::assertRouteSame('app_course_show');
 
         self::assertNull($lessonRepository->find(1));
     }
-}
 
-//
-//        $client->request('POST', '/lessons/1');  //app_lesson_delete
-//        $this->assertResponseOk();
+    public function testDeleteLessonFailed(): void
+    {
+        $client = static::getClient();
+        $client->followRedirects();
+
+        $this->mockBillingClient($client);
+
+        $client->request('GET', '/lessons/1');
+
+        // Неавторизован
+        // Без прав админа нет кнопки
+        $this->expectException('InvalidArgumentException');
+        $crawler = $client->clickLink('Удалить');
+
+        $client->request('POST', '/courses/1/delete');
+        self::assertResponseRedirects('/login');
+
+        // Авторизован как обычный пользователь
+        $client->followRedirects();
+        $crawler = $client->request('GET', '/lessons/1');
+        $this->authorize($client, AbstractTest::USER_EMAIL, AbstractTest::USER_PASSWORD);
+
+        // Без прав админа нет кнопки
+        $this->expectException('InvalidArgumentException');
+        $crawler = $client->clickLink('Удалить');
+
+        $client->request('POST', '/lessons/1/delete');
+        $this->assertResponseCode(403);
+    }
+}

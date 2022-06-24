@@ -5,7 +5,9 @@ namespace App\Form;
 use App\Entity\Lesson;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\HiddenType;
+use Symfony\Component\Form\Extension\Core\Type\NumberType;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
@@ -22,9 +24,9 @@ class LessonType extends AbstractType
                     'mapped' => false
                 ]
             )
-            ->add('name')
+            ->add('name', TextType::class)
             ->add('content', TextareaType::class)
-            ->add('serialNumber');
+            ->add('serialNumber', NumberType::class);
     }
 
     public function configureOptions(OptionsResolver $resolver): void

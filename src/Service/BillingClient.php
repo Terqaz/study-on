@@ -4,6 +4,7 @@ namespace App\Service;
 
 use App\Dto\UserDto;
 use App\Exception\BillingUnavailableException;
+use JMS\Serializer\Serializer;
 use JMS\Serializer\SerializerBuilder;
 use JsonException;
 use Symfony\Component\Security\Core\Exception\CustomUserMessageAuthenticationException;
@@ -15,6 +16,7 @@ class BillingClient
     protected const POST = 'POST';
 
     private ValidatorInterface $validator;
+    private Serializer $serializer;
 
     /**
      * @param ValidatorInterface $validator
@@ -61,6 +63,9 @@ class BillingClient
             $credentials
         );
 
+        if ($response['code'] === 409) {
+            throw new CustomUserMessageAuthenticationException('Пользователь с указанным email уже существует!');
+        }
         if ($response['code'] >= 400) {
             throw new BillingUnavailableException();
         }

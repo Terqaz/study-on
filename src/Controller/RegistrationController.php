@@ -2,17 +2,17 @@
 
 namespace App\Controller;
 
-use App\Exception\BillingUnavailableException;
 use App\Form\RegistrationFormType;
 use App\Security\LoginAuthenticator;
 use App\Security\SecurityUtils;
 use App\Security\User;
 use App\Service\BillingClient;
-use JsonException;
+use Exception;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Security\Core\Exception\CustomUserMessageAuthenticationException;
 use Symfony\Component\Security\Core\Security;
 use Symfony\Component\Security\Http\Authentication\AuthenticationUtils;
 use Symfony\Component\Security\Http\Authentication\UserAuthenticatorInterface;
@@ -52,10 +52,15 @@ class RegistrationController extends AbstractController
                     'username' => $form->get('email')->getData(),
                     'password' => $form->get('password')->getData()
                 ]);
-            } catch (BillingUnavailableException|JsonException $e) {
+            } catch (Exception $e) {
+                if ($e instanceof CustomUserMessageAuthenticationException) {
+                    $error = $e->getMessage();
+                } else {
+                    $error = SecurityUtils::SERVICE_TEMPORARILY_UNAVAILABLE;
+                }
                 return $this->render('registration/register.html.twig', [
                     'registrationForm' => $form->createView(),
-                    'error' => SecurityUtils::SERVICE_TEMPORARILY_UNAVAILABLE,
+                    'error' => $error,
                 ]);
             }
             $user->setApiToken($token);
@@ -68,6 +73,7 @@ class RegistrationController extends AbstractController
         }
         return $this->render('registration/register.html.twig', [
             'registrationForm' => $form->createView(),
+            'error' => $authenticationUtils->getLastAuthenticationError()
         ]);
     }
 }

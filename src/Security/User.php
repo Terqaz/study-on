@@ -14,6 +14,8 @@ class User implements UserInterface
 
     private string $apiToken;
 
+    private string $refreshToken;
+
     public static function fromDto(UserDto $userDto): User
     {
         return (new self())
@@ -90,6 +92,24 @@ class User implements UserInterface
     }
 
     /**
+     * @return string
+     */
+    public function getRefreshToken(): string
+    {
+        return $this->refreshToken;
+    }
+
+    /**
+     * @param string $refreshToken
+     */
+    public function setRefreshToken(string $refreshToken): self
+    {
+        $this->refreshToken = $refreshToken;
+
+        return $this;
+    }
+
+    /**
      * This method can be removed in Symfony 6.0 - is not needed for apps that do not check user passwords.
      *
      * @see PasswordAuthenticatedUserInterface
@@ -117,6 +137,4 @@ class User implements UserInterface
         // If you store any temporary, sensitive data on the user, clear it here
         // $this->plainPassword = null;
     }
-
-
 }

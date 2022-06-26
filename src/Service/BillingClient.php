@@ -18,9 +18,6 @@ class BillingClient
     private ValidatorInterface $validator;
     private Serializer $serializer;
 
-    /**
-     * @param ValidatorInterface $validator
-     */
     public function __construct(ValidatorInterface $validator)
     {
         $this->validator = $validator;
@@ -29,11 +26,11 @@ class BillingClient
 
     /**
      * @param array $credentials - ['username' => ..., 'password' => ...]
-     * @return ?string JWT token
+     * @return array ['token' => JWT token, 'refresh_token' => ...]
      * @throws BillingUnavailableException
      * @throws JsonException
      */
-    public function auth(array $credentials): string
+    public function auth(array $credentials): array
     {
         $response = $this->jsonRequest(
             self::POST,
@@ -46,16 +43,16 @@ class BillingClient
         if ($response['code'] >= 400) {
             throw new BillingUnavailableException();
         }
-        return json_decode($response['body'], true, 512, JSON_THROW_ON_ERROR)['token'];
+        return json_decode($response['body'], true, 512, JSON_THROW_ON_ERROR);
     }
 
     /**
      * @param array $credentials - ['username' => ..., 'password' => ...]
-     * @return string JWT token
+     * @return array ['token' => JWT token, 'refresh_token' => ...]
      * @throws BillingUnavailableException
      * @throws JsonException
      */
-    public function register(array $credentials): string
+    public function register(array $credentials): array
     {
         $response = $this->jsonRequest(
             self::POST,
@@ -70,13 +67,13 @@ class BillingClient
             throw new BillingUnavailableException();
         }
 
-        return json_decode($response['body'], true, 512, JSON_THROW_ON_ERROR)['token'];
+        return json_decode($response['body'], true, 512, JSON_THROW_ON_ERROR);
     }
 
     /**
      * @param string $token - JWT token
      * @return UserDto - user data
-     * @throws BillingUnavailableException
+     * @throws BillingUnavailableException|JsonException
      */
     public function getCurrent(string $token): UserDto
     {
@@ -101,11 +98,30 @@ class BillingClient
         return $userDto;
     }
 
+    /** Get new access token
+     * @param string $refreshToken
+     * @return array - ['token' => JWT token, 'refresh_token' => ...]
+     * @throws BillingUnavailableException|JsonException
+     */
+    public function refreshToken(string $refreshToken): array
+    {
+        $response = $this->jsonRequest(
+            self::POST,
+            '/token/refresh',
+            ['refresh_token' => $refreshToken],
+        );
+        if ($response['code'] >= 400) {
+            throw new BillingUnavailableException();
+        }
+
+        return json_decode($response['body'], true, 512, JSON_THROW_ON_ERROR);
+    }
+
     /**
      * @throws BillingUnavailableException
      * @throws JsonException
      */
-    protected function jsonRequest(string $method, string $path, $data, array $headers = []): array
+    protected function jsonRequest(string $method, string $path, $data = [], array $headers = []): array
     {
         $headers['Accept'] = 'application/json';
         $headers['Content-Type'] = 'application/json';
@@ -120,7 +136,7 @@ class BillingClient
      * @return array - response code and body
      * @throws BillingUnavailableException
      */
-    protected function request(string $method, string $path, $body, array $headers = []): array
+    protected function request(string $method, string $path, $body = '', array $headers = []): array
     {
         $ch = curl_init("http://billing.study-on.local/api/v1" . $path);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);

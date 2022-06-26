@@ -63,7 +63,8 @@ class RegistrationController extends AbstractController
                     'error' => $error,
                 ]);
             }
-            $user->setApiToken($token);
+            $user->setApiToken($token['token'])
+                ->setRefreshToken($token['refresh_token']);
 
             return $userAuthenticator->authenticateUser(
                 $user,

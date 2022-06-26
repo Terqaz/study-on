@@ -4,6 +4,8 @@ namespace App\Security;
 
 use App\Exception\BillingUnavailableException;
 use App\Service\BillingClient;
+use DateTime;
+use JsonException;
 use Symfony\Component\Security\Core\Exception\CustomUserMessageAuthenticationException;
 use Symfony\Component\Security\Core\Exception\UnsupportedUserException;
 use Symfony\Component\Security\Core\Exception\UserNotFoundException;
@@ -58,6 +60,24 @@ class UserProvider implements UserProviderInterface, PasswordUpgraderInterface
     {
         if (!$user instanceof User) {
             throw new UnsupportedUserException(sprintf('Invalid user class "%s".', get_class($user)));
+        }
+        try {
+            $tokenPayload = explode(".", $user->getApiToken())[1];
+            $tokenPayload = json_decode(base64_decode($tokenPayload), true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $e) {
+            throw new CustomUserMessageAuthenticationException(SecurityUtils::SERVICE_TEMPORARILY_UNAVAILABLE);
+        }
+
+        $tokenExpiredTime = (new DateTime())->setTimestamp($tokenPayload['exp'] + 10);
+
+        if ($tokenExpiredTime <= new DateTime()) {
+            try {
+                $tokens = $this->billingClient->refreshToken($user->getRefreshToken());
+            } catch (BillingUnavailableException|JsonException $e) {
+                throw new CustomUserMessageAuthenticationException(SecurityUtils::SERVICE_TEMPORARILY_UNAVAILABLE);
+            }
+            $user->setApiToken($tokens['token'])
+                ->setRefreshToken($tokens['refresh_token']);
         }
 
         return $this->loadUserFromBilling($user->getApiToken());

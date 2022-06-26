@@ -44,23 +44,25 @@ class LoginAuthenticator extends AbstractLoginFormAuthenticator
         $password = $request->request->get('password', '');
 
         try {
-            $token = $this->billingClient->auth(['username' => $email, 'password' => $password]);
+            $tokens = $this->billingClient->auth(['username' => $email, 'password' => $password]);
         } catch (BillingUnavailableException|JsonException $e) {
             throw new CustomUserMessageAuthenticationException(SecurityUtils::SERVICE_TEMPORARILY_UNAVAILABLE);
         }
+        $refreshToken = $tokens['refresh_token'];
 
-        $userLoader = function ($token): UserInterface {
+        $userLoader = function ($token) use ($refreshToken): UserInterface {
             try {
                 $userDto = $this->billingClient->getCurrent($token);
             } catch (BillingUnavailableException|JsonException $e) {
                 throw new CustomUserMessageAuthenticationException(SecurityUtils::SERVICE_TEMPORARILY_UNAVAILABLE);
             }
             return User::fromDto($userDto)
-                ->setApiToken($token);
+                ->setApiToken($token)
+                ->setRefreshToken($refreshToken);
         };
 
         return new SelfValidatingPassport(
-            new UserBadge($token, $userLoader),
+            new UserBadge($tokens['token'], $userLoader),
             [
                 new CsrfTokenBadge('authenticate', $request->get('_csrf_token')),
             ]

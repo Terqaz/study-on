@@ -61,6 +61,7 @@ class UserProvider implements UserProviderInterface, PasswordUpgraderInterface
         if (!$user instanceof User) {
             throw new UnsupportedUserException(sprintf('Invalid user class "%s".', get_class($user)));
         }
+
         try {
             $tokenPayload = explode(".", $user->getApiToken())[1];
             $tokenPayload = json_decode(base64_decode($tokenPayload), true, 512, JSON_THROW_ON_ERROR);
@@ -71,7 +72,7 @@ class UserProvider implements UserProviderInterface, PasswordUpgraderInterface
         $tokenExpiredTime = (new DateTime())->setTimestamp($tokenPayload['exp'] + 10);
 
         if ($tokenExpiredTime <= new DateTime()) {
-            try {
+            try { //todo ошибка при обращении к токену через некоторое время
                 $tokens = $this->billingClient->refreshToken($user->getRefreshToken());
             } catch (BillingUnavailableException|JsonException $e) {
                 throw new CustomUserMessageAuthenticationException(SecurityUtils::SERVICE_TEMPORARILY_UNAVAILABLE);
@@ -104,6 +105,7 @@ class UserProvider implements UserProviderInterface, PasswordUpgraderInterface
     /**
      * @param string $identifier
      * @return User
+     * @throws JsonException
      */
     private function loadUserFromBilling(string $identifier): User
     {

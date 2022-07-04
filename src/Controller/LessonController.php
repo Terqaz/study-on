@@ -6,11 +6,14 @@ use App\Entity\Lesson;
 use App\Form\LessonType;
 use App\Repository\CourseRepository;
 use App\Repository\LessonRepository;
+use App\Service\BillingClient;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Security\Core\Exception\AccessDeniedException;
+use Symfony\Component\Security\Core\Security;
 
 /**
  * @Route("/lessons")
@@ -18,15 +21,14 @@ use Symfony\Component\Routing\Annotation\Route;
  */
 class LessonController extends AbstractController
 {
-//    /**
-//     * @Route("/", name="app_lesson_index", methods={})
-//     */
-//    public function index(LessonRepository $lessonRepository): Response
-//    {
-//        return $this->render('lesson/index.html.twig', [
-//            'lessons' => $lessonRepository->findAll(),
-//        ]);
-//    }
+    private BillingClient $billingClient;
+    private Security $security;
+
+    public function __construct(BillingClient $billingClient, Security $security)
+    {
+        $this->billingClient = $billingClient;
+        $this->security = $security;
+    }
 
     /**
      * @Route("/new", name="app_lesson_new", methods={"GET", "POST"})
@@ -69,6 +71,14 @@ class LessonController extends AbstractController
      */
     public function show(Lesson $lesson): Response
     {
+        $user = $this->security->getUser();
+
+        $billingCourse = $this->billingClient->getCourse($lesson->getCourse()->getCode());
+        if (!$this->isGranted('ROLE_SUPER_ADMIN') &&
+                !$this->billingClient->isCoursePaid($user->getApiToken(), $billingCourse)) {
+            throw new AccessDeniedException();
+        }
+
         return $this->render('lesson/show.html.twig', [
             'lesson' => $lesson,
         ]);

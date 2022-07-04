@@ -12,6 +12,11 @@
                     <div class="card card__my">
                         <div class="card-body">
                             <h5 class="card-title">{{ course.name }}</h5>
+                            {% if coursesMessage[course.code] is defined %}
+                                <h6 class="card-subtitle mb-2 text-muted">{{ coursesMessage[course.code] }}</h6>
+                            {% else %}
+                                <h6 class="card-subtitle mb-2 text-muted"> Бесплатный </h6>
+                            {% endif %}
                             <p class="card-text">{{ course.description }}</p>
                             <a class="mt-auto" href="{{ path('app_course_show', {'id': course.id}) }}">Пройти</a>
                         </div>

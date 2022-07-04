@@ -43,7 +43,7 @@ class User implements UserInterface
      */
     public function getUserIdentifier(): string
     {
-        return (string) $this->email;
+        return $this->email;
     }
 
     /**
@@ -51,7 +51,7 @@ class User implements UserInterface
      */
     public function getUsername(): string
     {
-        return (string) $this->email;
+        return $this->email;
     }
 
     /**
@@ -74,15 +74,16 @@ class User implements UserInterface
     }
 
     /**
-     * @return mixed
+     * @return string
      */
-    public function getApiToken()
+    public function getApiToken(): string
     {
         return $this->apiToken;
     }
 
     /**
      * @param string $apiToken
+     * @return User
      */
     public function setApiToken(string $apiToken): self
     {
@@ -101,6 +102,7 @@ class User implements UserInterface
 
     /**
      * @param string $refreshToken
+     * @return User
      */
     public function setRefreshToken(string $refreshToken): self
     {

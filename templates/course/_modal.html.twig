@@ -1,0 +1,33 @@
+<div class="modal fade" tabindex="-1" aria-hidden="true" data-modal-form-target="modal">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="payConfirmModalLabel">Оплата курса</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            {% if paymentStatus is null %}
+                <div class="modal-body">
+                    <p> С вашего счета будет списано {{ billingCourse['price'] }} рублей</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-info" data-bs-dismiss="modal">
+                        Отмена
+                    </button>
+                    <form name="myform" action="{{ path('app_course_pay', {'id': course.id}) }}" method="post">
+                        <input type="hidden" name="_token" value="{{ csrf_token('pay-course' ~ course.id) }}"/>
+                        <button class="btn btn-info">Продолжить</button>
+                    </form>
+                </div>
+            {% else %}
+                <div class="modal-body">
+                    <p> {{ paymentStatus }} </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-info" data-bs-dismiss="modal">
+                        Закрыть
+                    </button>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>

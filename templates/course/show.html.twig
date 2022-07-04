@@ -1,15 +1,47 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}{{ course.name }} | StudyOn{% endblock %}
+{% block title %} {{ course.name }} | StudyOn {% endblock %}
 
 {% block body %}
     <h1>{{ course.name }}</h1>
-    <div class="mt-2">{{ course.description }}</div>
+    <div class="mt-2 mb-2">{{ course.description }}</div>
+
+    {% if not is_granted('ROLE_USER') %}
+        <h3> Войдите, чтобы иметь доступ к покупке курсов </h3>
+    {% elseif not billingCourse['isPaid'] %}
+        {% if billingUser.balance > billingCourse['price'] %}
+            <div {{ stimulus_controller('modal-form') }}>
+                <button type="button" class="btn btn-primary" data-action="modal-form#openModal">
+                    {% if billingCourse['type'] is same as('buy') %}
+                        Купить
+                    {% elseif billingCourse['type'] is same as('rent') %}
+                        Арендовать
+                    {% endif %}
+                </button>
+                {{ include('course/_modal.html.twig') }}
+            </div>
+        {% else %}
+            <h3>Недостаточно средств для оплаты</h3>
+        {% endif %}
+    {% elseif paymentStatus is not null %}
+        <div {{ stimulus_controller('modal-form', {
+            'isShown': 'true'
+        }) }}>
+            {{ include('course/_modal.html.twig') }}
+        </div>
+    {% endif %}
+
+
+
     <h1 class="mt-3">Уроки</h1>
     <ol>
         {% for lesson in course.lessons %}
             <li>
-                <a href="{{ path('app_lesson_show', {'id': lesson.id}) }}">{{ lesson.name }}</a>
+                {% if (is_granted("ROLE_USER") and billingCourse['isPaid']) or is_granted("ROLE_SUPER_ADMIN") %}
+                    <a href="{{ path('app_lesson_show', {'id': lesson.id}) }}">{{ lesson.name }}</a>
+                {% else %}
+                    <p class="mb-0">{{ lesson.name }}</p>
+                {% endif %}
             </li>
         {% endfor %}
     </ol>

@@ -3,26 +3,89 @@
 namespace App\Controller;
 
 use App\Entity\Course;
+use App\Enum\PaymentStatus;
+use App\Exception\BillingUnavailableException;
+use App\Exception\CourseAlreadyPaidException;
+use App\Exception\InsufficientFundsException;
+use App\Exception\ResourceNotFoundException;
 use App\Form\CourseType;
 use App\Repository\CourseRepository;
+use App\Security\User;
+use App\Service\BillingClient;
+use DateTime;
+use DateTimeInterface;
+use JsonException;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Security\Core\Security;
 
 /**
  * @Route("/courses")
  */
 class CourseController extends AbstractController
 {
+    private BillingClient $billingClient;
+    private Security $security;
+
+    public function __construct(BillingClient $billingClient, Security $security)
+    {
+        $this->billingClient = $billingClient;
+        $this->security = $security;
+    }
+
     /**
      * @Route("/", name="app_course_index", methods={"GET"})
      */
     public function index(CourseRepository $courseRepository): Response
     {
+        $transactionsByCode = [];
+
+        if ($this->isGranted('ROLE_USER')) {
+            /** @var User $user */
+            $user = $this->security->getUser();
+
+            $transactions = $this->billingClient->getTransactions(
+                $user->getApiToken(),
+                'payment',
+                null,
+                true
+            );
+            foreach ($transactions as $transaction) {
+                $transactionsByCode[$transaction['course_code']] = $transaction;
+            }
+        }
+
+        $billingCourses = $this->billingClient->getCourses();
+
+        $coursesMessage = [];
+        foreach ($billingCourses as $course) {
+            if (isset($transactionsByCode[$course['code']])) { // Если куплен или аренда не истекла
+                if ($course['type'] === 'rent') {
+                    /** @var DateTime $expiresAt */
+                    $expiresAt = $transactionsByCode[$course['code']]['expires_at'];
+                    $expiresAt = DateTime::createFromFormat(DateTimeInterface::ATOM, $expiresAt);
+                    $coursesMessage[$course['code']] =
+                        'Арендовано до ' . $expiresAt->format('H:i:s d.m.Y');
+                } elseif ($course['type'] === 'buy') {
+                    $coursesMessage[$course['code']] = 'Куплено';
+                }
+            } else {
+                if ($course['type'] === 'rent') {
+                    $coursesMessage[$course['code']] = $course['price'] . '₽ в неделю';
+                } elseif ($course['type'] === 'buy') {
+                    $coursesMessage[$course['code']] = $course['price'] . '₽';
+                } elseif ($course['type'] === 'free') {
+                    $coursesMessage[$course['code']] = 'Бесплатный';
+                }
+            }
+        }
+
         return $this->render('course/index.html.twig', [
             'courses' => $courseRepository->findAll(),
+            'coursesMessage' => $coursesMessage,
         ]);
     }
 
@@ -50,11 +113,71 @@ class CourseController extends AbstractController
     /**
      * @Route("/{id}", name="app_course_show", methods={"GET"})
      */
-    public function show(Course $course): Response
+    public function show(Request $request, Course $course): Response
     {
+        /** @var User $user */
+        $user = $this->security->getUser();
+        if (null === $user) {
+            return $this->render('course/show.html.twig', [
+                'course' => $course,
+                'billingCourse' => null,
+                'billingUser' => null
+            ]);
+        }
+        $billingUser = $this->billingClient->getCurrent($user->getApiToken());
+        $billingCourse = $this->billingClient->getCourse($course->getCode());
+
+        $billingCourse['isPaid'] = $this->billingClient->isCoursePaid($user->getApiToken(), $billingCourse);
+
+        $paymentStatus = $request->query->get('payment_status');
+        if (null !== $paymentStatus) {
+            if ($paymentStatus <= 3) {
+                $paymentStatus = PaymentStatus::MESSAGES[(int) $paymentStatus];
+            } else {
+                $paymentStatus = null;
+            }
+        }
+
         return $this->render('course/show.html.twig', [
             'course' => $course,
+            'billingCourse' => $billingCourse,
+            'billingUser' => $billingUser,
+            'paymentStatus' => $paymentStatus,
         ]);
+    }
+
+    /**
+     * @Route("/{id}/pay", name="app_course_pay", methods={"POST"})
+     * @IsGranted("ROLE_USER")
+     */
+    public function pay(Request $request, Course $course): Response
+    {
+        if (!$this->isCsrfTokenValid('pay-course'.$course->getId(), $request->request->get('_token'))) {
+            return $this->redirectToRoute('app_course_index', [], Response::HTTP_SEE_OTHER);
+        }
+
+        /** @var User $user */
+        $user = $this->security->getUser();
+
+        $paymentStatus = PaymentStatus::FAILED;
+
+        try {
+            $payInfo = $this->billingClient->payCourse($user->getApiToken(), $course->getCode());
+        } catch (InsufficientFundsException $e) {
+            $paymentStatus = PaymentStatus::INSUFFICIENT_FUNDS;
+        } catch (CourseAlreadyPaidException $e) {
+            $paymentStatus = PaymentStatus::ALREADY_PAID;
+        } catch (ResourceNotFoundException|BillingUnavailableException|JsonException $_) {
+        }
+
+        if (isset($payInfo['success']) && $payInfo['success']) {
+            $paymentStatus = PaymentStatus::SUCCEEDED;
+        }
+
+        return $this->redirectToRoute('app_course_show', [
+            'id' => $course->getId(),
+            'payment_status' => $paymentStatus
+        ], Response::HTTP_SEE_OTHER);
     }
 
     /**

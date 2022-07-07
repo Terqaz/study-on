@@ -12,8 +12,7 @@ use App\Form\CourseType;
 use App\Repository\CourseRepository;
 use App\Security\User;
 use App\Service\BillingClient;
-use DateTime;
-use DateTimeInterface;
+use App\Service\ConverterService;
 use JsonException;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -64,11 +63,8 @@ class CourseController extends AbstractController
         foreach ($billingCourses as $course) {
             if (isset($transactionsByCode[$course['code']])) { // Если куплен или аренда не истекла
                 if ($course['type'] === 'rent') {
-                    /** @var DateTime $expiresAt */
-                    $expiresAt = $transactionsByCode[$course['code']]['expires_at'];
-                    $expiresAt = DateTime::createFromFormat(DateTimeInterface::ATOM, $expiresAt);
-                    $coursesMessage[$course['code']] =
-                        'Арендовано до ' . $expiresAt->format('H:i:s d.m.Y');
+                    $expiresAt = ConverterService::reformatDateTime($transactionsByCode[$course['code']]['expires_at']);
+                    $coursesMessage[$course['code']] = 'Арендовано до ' . $expiresAt;
                 } elseif ($course['type'] === 'buy') {
                     $coursesMessage[$course['code']] = 'Куплено';
                 }
@@ -121,7 +117,8 @@ class CourseController extends AbstractController
             return $this->render('course/show.html.twig', [
                 'course' => $course,
                 'billingCourse' => null,
-                'billingUser' => null
+                'billingUser' => null,
+                'paymentStatus' => null,
             ]);
         }
         $billingUser = $this->billingClient->getCurrent($user->getApiToken());

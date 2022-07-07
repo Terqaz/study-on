@@ -13,7 +13,7 @@
                     <button type="button" class="btn btn-outline-info" data-bs-dismiss="modal">
                         Отмена
                     </button>
-                    <form name="myform" action="{{ path('app_course_pay', {'id': course.id}) }}" method="post">
+                    <form name="payCourse" action="{{ path('app_course_pay', {'id': course.id}) }}" method="post">
                         <input type="hidden" name="_token" value="{{ csrf_token('pay-course' ~ course.id) }}"/>
                         <button class="btn btn-info">Продолжить</button>
                     </form>

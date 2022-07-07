@@ -105,7 +105,7 @@ class BillingClient
         return $userDto;
     }
 
-    /** Get new access token
+    /** Get new access and refresh tokens
      * @param string $refreshToken
      * @return array - ['token' => JWT token, 'refresh_token' => ...]
      * @throws BillingUnavailableException|JsonException
@@ -247,16 +247,16 @@ class BillingClient
      */
     public function isCoursePaid(string $apiToken, array $billingCourse): bool
     {
-        if ($billingCourse['type'] !== 'free') {
-            $transaction = $this->getTransactions(
-                $apiToken,
-                'payment',
-                $billingCourse['code'],
-                true
-            );
-            return count($transaction) > 0;
+        if ($billingCourse['type'] === 'free') {
+            return true;
         }
-        return true;
+        $transaction = $this->getTransactions(
+            $apiToken,
+            'payment',
+            $billingCourse['code'],
+            true
+        );
+        return count($transaction) > 0;
     }
 
     /**

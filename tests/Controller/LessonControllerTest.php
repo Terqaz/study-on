@@ -4,6 +4,7 @@ namespace App\Tests\Controller;
 
 use App\Entity\Course;
 use App\Entity\Lesson;
+use App\Service\BillingClient;
 use App\Tests\AbstractTest;
 use App\Tests\TestUtils;
 
@@ -14,7 +15,12 @@ class LessonControllerTest extends AbstractTest
         $client = static::getClient();
         $client->followRedirects();
 
-        $this->mockBillingClient($client);
+        $billingClientMock = $this->mockBillingClient($client, false);
+
+        $billingClientMock->method('getTransactions')
+            ->willReturn([self::$transactions[1]]); // Курс изначально куплен
+
+        static::getContainer()->set(BillingClient::class, $billingClientMock);
 
         // Вход
         $client->request('GET', '/');
@@ -29,14 +35,6 @@ class LessonControllerTest extends AbstractTest
             'Операторы. Переменные. Типы данных. Условия',
             $crawler->filter('h1')->text()
         );
-
-        // Если несуществующий айдишник
-        $client->request('GET', '/lessons/34636643');
-        $this->assertResponseCode(404);
-
-        // Если вместо айдишника буквы
-        $client->request('GET', '/lessons/sdsb');
-        $this->assertResponseCode(500);
     }
 
     /**
@@ -45,12 +43,29 @@ class LessonControllerTest extends AbstractTest
     public function testShowLessonFailed(): void
     {
         $client = static::getClient();
+        $client->followRedirects();
 
         $this->mockBillingClient($client);
 
+        $client->request('GET', '/');
+        $this->authorize($client, AbstractTest::USER_EMAIL, AbstractTest::USER_PASSWORD);
         $client->request('GET', '/courses/1');
-        $client->clickLink('Операторы. Переменные. Типы данных. Условия');
-        self::assertResponseRedirects('/login');
+
+        // Без покупки нет ссылок на курсы
+        $this->expectException('InvalidArgumentException');
+        $crawler = $client->clickLink('Операторы. Переменные. Типы данных. Условия');
+
+        // И доступа
+        $client->request('GET', '/lessons/1');
+        $this->assertResponseCode(403);
+
+        // Если несуществующий айдишник
+        $client->request('GET', '/lessons/34636643');
+        $this->assertResponseCode(404);
+
+        // Если вместо айдишника буквы
+        $client->request('GET', '/lessons/sdsb');
+        $this->assertResponseCode(500);
     }
 
     public function testSubmitNewLesson(): void

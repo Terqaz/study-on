@@ -3,8 +3,15 @@
 namespace App\Tests\Controller;
 
 use App\Entity\Course;
+use App\Enum\PaymentStatus;
+use App\Exception\BillingUnavailableException;
+use App\Exception\CourseAlreadyPaidException;
+use App\Exception\InsufficientFundsException;
+use App\Exception\ResourceNotFoundException;
+use App\Service\BillingClient;
+use App\Service\ConverterService;
 use App\Tests\AbstractTest;
-use App\Tests\TestUtils;
+use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 
 class CourseControllerTest extends AbstractTest
 {
@@ -55,6 +62,9 @@ class CourseControllerTest extends AbstractTest
             ->find(1)
             ->getLessons();
         self::assertEquals($lessons->count(), $crawler->filter('ol li')->count());
+
+        // Проверка, что уроки не ссылки
+        self::assertTrue($crawler->filter('ol > li > p')->count() > 0);
 
         // Если несуществующий айдишник
         $client->request('GET', '/courses/34636643');
@@ -312,5 +322,180 @@ class CourseControllerTest extends AbstractTest
 
         $client->request('POST', '/courses/1/delete');
         $this->assertResponseCode(403);
+    }
+
+    public function testPayCourse(): void
+    {
+        $client = static::getClient();
+        $client->followRedirects();
+
+        $billingClientMock = $this->mockBillingClient($client, false);
+
+        $billingClientMock->method('getTransactions')
+            ->willReturnOnConsecutiveCalls(
+                [], // на главной странице
+                [], // На странице курса без авторизации.
+                [self::$transactions[1]], // При оплате
+                array_slice(self::$transactions, 1, 2) // на главной странице
+            );
+        $billingClientMock->method('payCourse')
+            ->willReturnOnConsecutiveCalls(
+                [
+                    'success' => true,
+                    'course_type' => "python-programming",
+                    "expires_at" => self::$expiresAt
+                ],
+            );
+        static::getContainer()->set(BillingClient::class, $billingClientMock);
+
+        $crawler = $client->request('GET', '/courses/');
+        $this->assertResponseOk();
+
+        // Проверка подписей под заголовками карточек
+        $cardSubtitles = $crawler->filter('.card-subtitle.text-muted')->each(static function ($node) {
+            return $node->text();
+        });
+        self::assertEquals(['10₽ в неделю', 'Бесплатный', '20₽'], $cardSubtitles);
+
+        // Проверим, что нет кнопки без входа
+        $crawler = $client->clickLink('Пройти');
+        $this->assertResponseOk();
+        self::assertEquals(
+            'Войдите, чтобы иметь доступ к покупке курсов',
+            $crawler->filter('body > div > h3')->text()
+        );
+
+        $this->authorize($client, AbstractTest::USER_EMAIL, AbstractTest::USER_PASSWORD);
+
+        $crawler = $client->clickLink('Пройти');
+        $this->assertResponseOk();
+
+        $client->followRedirects(false);
+
+        // Присутствие кнопки Арендовать
+        self::assertSame(1, $crawler->filter('button[data-action="modal-form#openModal"]')->count());
+
+        $client->submitForm('Продолжить');
+        self::assertResponseRedirects('/courses/1?payment_status=' . PaymentStatus::SUCCEEDED);
+        $crawler = $client->followRedirect();
+        $this->assertResponseOk();
+
+        // Отсутствие кнопок Арендовать и Продолжить
+        self::assertSame(0, $crawler->filter('button[data-action="modal-form#openModal"]')->count());
+        $this->expectException('InvalidArgumentException');
+        $client->submitForm('Продолжить');
+
+        self::assertEquals(
+            'Курс успешно оплачен',
+            $crawler->filter('.modal-body')->text()
+        );
+
+        // Проверка, что теперь есть ссылки на уроки
+        self::assertTrue($crawler->filter('ol > li > a')->count() > 0);
+
+        // Предположим, что купили еще один курс
+
+        $crawler = $client->request('GET', '/courses/');
+        $this->assertResponseOk();
+
+        // Проверка подписей под заголовками карточек
+        $cardSubtitles = $crawler->filter('.card-subtitle.text-muted')->each(static function ($node) {
+            return $node->text();
+        });
+        self::assertEquals([
+            'Арендовано до ' . self::$expiresAtDateTime->format(ConverterService::SIMPLE_DATETIME_FORMAT),
+            'Бесплатный',
+            'Куплено'
+        ], $cardSubtitles);
+    }
+
+    public function testPayCourseFailed(): void
+    {
+        $client = static::getClient();
+        $client->followRedirects();
+
+        $billingClientMock = $this->mockBillingClient($client, false);
+
+        $billingClientMock->method('getTransactions')
+            ->willReturn([]);
+        $billingClientMock->method('payCourse')
+            ->willReturnCallback(static function () {
+                static $counter = 0;
+
+                switch ($counter++) {
+                    case 0:
+                        throw new InsufficientFundsException();
+                    case 1:
+                        throw new CourseAlreadyPaidException();
+                    case 2:
+                        throw new ResourceNotFoundException();
+                    case 3:
+                        throw new BillingUnavailableException();
+                }
+            });
+
+        static::getContainer()->set(BillingClient::class, $billingClientMock);
+
+        $crawler = $client->request('GET', '/courses/');
+        $this->authorize($client, AbstractTest::USER_EMAIL, AbstractTest::USER_PASSWORD);
+
+        $client->followRedirects(false);
+
+        $this->testErrorPayment($client, PaymentStatus::INSUFFICIENT_FUNDS);
+        $this->testErrorPayment($client, PaymentStatus::ALREADY_PAID);
+        $this->testErrorPayment($client, PaymentStatus::FAILED);
+        $this->testErrorPayment($client, PaymentStatus::FAILED);
+    }
+
+    private function testErrorPayment(KernelBrowser $client, int $status): void
+    {
+        $crawler = $client->request('GET', '/courses/1');
+        $client->submitForm('Продолжить');
+        self::assertResponseRedirects('/courses/1?payment_status=' . $status);
+        $crawler = $client->followRedirect();
+        $this->assertResponseOk();
+
+        // Присутствие кнопки Арендовать при ошибке
+        self::assertSame(1, $crawler->filter('button[data-action="modal-form#openModal"]')->count());
+
+        self::assertEquals(
+            PaymentStatus::MESSAGES[$status],
+            $crawler->filter('.modal-body')->text()
+        );
+    }
+
+    public function testGetTransactions(): void
+    {
+        $client = static::getClient();
+        $client->followRedirects();
+
+        $billingClientMock = $this->mockBillingClient($client, false);
+
+        $billingClientMock->method('getTransactions')
+            ->willReturnOnConsecutiveCalls(
+                [], // Открытие списка курсов
+                [], // Открытие списка транзакций первый раз
+                self::$transactions // и второй раз
+            );
+
+        static::getContainer()->set(BillingClient::class, $billingClientMock);
+
+        $crawler = $client->request('GET', '/courses/');
+        $this->authorize($client, AbstractTest::USER_EMAIL, AbstractTest::USER_PASSWORD);
+        $crawler = $client->clickLink('Профиль');
+        $this->assertResponseOk();
+
+        $crawler = $client->clickLink('История платежей');
+        $this->assertResponseOk();
+
+        // Нет транзакций
+        self::assertEquals(
+            'Нет транзакций',
+            $crawler->filter('table > tbody > tr')->text()
+        );
+
+        $crawler = $client->request('GET', '/profile/transactions/');
+        $this->assertResponseOk();
+        self::assertEquals(3, $crawler->filter('table > tbody > tr')->count());
     }
 }

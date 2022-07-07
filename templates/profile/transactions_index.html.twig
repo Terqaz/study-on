@@ -1,0 +1,44 @@
+{% extends 'base.html.twig' %}
+
+{% block title %} История платежей | StudyOn {% endblock %}
+
+{% block body %}
+    <h1>Транзакции</h1>
+
+    <table class="table table-light">
+        <thead>
+        <tr>
+            <th></th>
+            <th>Тип</th>
+            <th>Время исполнения</th>
+            <th>Срок истечения аренды</th>
+            <th>Сумма</th>
+            <th>Курс</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for transaction in transactions %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ transaction['type'] }}</td>
+                <td>{{ transaction['created_at']|date(datetimeFormat) }}</td>
+                <td>{{ transaction['expires_at'] ?? '-' }}</td>
+                <td>{{ transaction['amount'] }}</td>
+                <td>
+                    {% if transaction['course'] is defined %}
+                        <a href="{{ path('app_course_show', {'id': transaction['course'].id}) }}">
+                            {{ transaction['course'].name }}
+                        </a>
+                    {% else %}
+                        <p> - </p>
+                    {% endif %}
+                </td>
+            </tr>
+        {% else %}
+            <tr>
+                <td colspan="6">Нет транзакций</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

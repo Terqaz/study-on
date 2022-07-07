@@ -5,9 +5,14 @@ declare(strict_types=1);
 namespace App\Tests;
 
 use App\Dto\UserDto;
+use App\Exception\BillingUnavailableException;
 use App\Service\BillingClient;
-use App\Tests\Mock\BillingClientMock;
+use DateInterval;
+use DateTime;
+use DateTimeInterface;
 use Exception;
+use JsonException;
+use PHPUnit\Framework\MockObject\MockObject;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\BrowserKit\AbstractBrowser;
@@ -24,11 +29,64 @@ abstract class AbstractTest extends WebTestCase
     public const USER_EMAIL = 'user@example.com';
     public const ADMIN_EMAIL = 'admin@example.com';
 
+    protected const COURSES = [
+        [
+            'code' => 'interactive-sql-trainer',
+            'type' => 'free'
+        ], [
+            'code' => 'python-programming',
+            'type' => 'rent',
+            'price' => 10
+        ], [
+            'code' => 'building-information-modeling',
+            'type' => 'buy',
+            'price' => 20
+        ]
+    ];
+
     protected static KernelBrowser $client;
+
+    protected static DateTime $expiresAtDateTime;
+    private static string $createdAt;
+    protected static string $expiresAt;
+
+    protected static array $transactions;
+
+    public static function setUpBeforeClass(): void
+    {
+        parent::setUpBeforeClass();
+
+        self::$expiresAtDateTime = (new DateTime())->add(new DateInterval('P7D'));
+        self::$createdAt = (new DateTime())->format(DateTimeInterface::ATOM);
+        self::$expiresAt = self::$expiresAtDateTime->format(DateTimeInterface::ATOM);
+
+        self::$transactions = [
+            [
+                "id" => 1,
+                "created_at" => self::$createdAt,
+                "type" => "deposit",
+                "amount" => 1000
+            ], [
+                "id" => 2,
+                "created_at" => self::$createdAt,
+                "expires_at" => self::$expiresAt,
+                "type" => "payment",
+                "course_code" => "python-programming",
+                "amount" => 10
+            ], [
+                "id" => 3,
+                "created_at" => self::$createdAt,
+                "type" => "payment",
+                "course_code" => "building-information-modeling",
+                "amount" => 20
+            ]
+        ];
+    }
 
     protected function setUp(): void
     {
         static::$client = static::createClient();
+//        self::markTestSkipped();
     }
 
     protected static function getClient($reinitialize = false): KernelBrowser
@@ -178,48 +236,6 @@ abstract class AbstractTest extends WebTestCase
         return preg_replace('#[\n\r]+#', ' ', $text);
     }
 
-    private static array $usersByEmail = [
-        self::USER_EMAIL => [self::USER_PASSWORD, 'user_token'],
-        self::ADMIN_EMAIL => [self::ADMIN_PASSWORD, 'admin_token']
-    ];
-
-    protected function mockBillingClient(KernelBrowser $client): void
-    {
-        $client->disableReboot();
-
-        $billingClientMock = $this->getMockBuilder(BillingClient::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-
-        $billingClientMock->method('auth')
-            ->willReturnCallback(static function (array $credentials) {
-                $email = $credentials['username'];
-                if (isset(self::$usersByEmail[$email])) {
-                    return self::$usersByEmail[$email][1];
-                }
-                throw new CustomUserMessageAuthenticationException('Неправильные логин или пароль');
-            });
-
-        $billingClientMock->method('register')
-            ->willReturnCallback(static function (array $credentials) {
-                $email = $credentials['username'];
-                if (isset(self::$usersByEmail[$email])) {
-                    throw new CustomUserMessageAuthenticationException('Пользователь с указанным email уже существует!');
-                }
-                self::$usersByEmail[$email] = [$credentials['password'], 'user_token2'];
-                return 'user_token2';
-            });
-
-        $billingClientMock->method('getCurrent')
-            ->willReturnMap([
-                ['user_token', new UserDto(self::USER_EMAIL, ['ROLE_USER'], 1000)],
-                ['user_token2', new UserDto('test@example.com', ['ROLE_USER'], 0)],
-                ['admin_token', new UserDto(self::ADMIN_EMAIL, ['ROLE_SUPER_ADMIN'], 0)],
-            ]);
-
-        static::getContainer()->set(BillingClient::class, $billingClientMock);
-    }
-
     protected function authorize(AbstractBrowser $client, string $login, string $password): ?Crawler
     {
         $crawler = $client->clickLink('Вход');
@@ -249,9 +265,127 @@ abstract class AbstractTest extends WebTestCase
         return $crawler;
     }
 
+    private const USER_REFRESH_TOKEN = 'user_refresh_token';
+    private const USER_REFRESH_TOKEN_2 = 'user_refresh_token2';
+    private const ADMIN_REFRESH_TOKEN = 'admin_refresh_token';
+
+    private static $usersByEmail;
+
+    /**
+     * Если $isMockFinal - false, то возвратится billingClientMock, в котором можно продолжить
+     * конфигурировать моки на методы.
+     * В конце нужно заменить BillingClient на billingClientMock:
+     *      static::getContainer()->set(BillingClient::class, $billingClientMock);
+     * @param KernelBrowser $client
+     * @param bool $isMockFinal
+     * @return MockObject|null
+     * @throws JsonException
+     */
+    protected function mockBillingClient(KernelBrowser $client, bool $isMockFinal = true): ?MockObject
+    {
+        $newUserEmail = 'test@example.com';
+        
+        $userToken = self::generateTestJwt(self::USER_EMAIL);
+        $userToken2 = self::generateTestJwt($newUserEmail);
+        $adminToken = self::generateTestJwt(self::ADMIN_EMAIL);
+
+        self::$usersByEmail = [
+            self::USER_EMAIL => [self::USER_PASSWORD, ['token' => $userToken, 'refresh_token' => self::USER_REFRESH_TOKEN]],
+            self::ADMIN_EMAIL => [self::ADMIN_PASSWORD, ['token' => $adminToken, 'refresh_token' => self::ADMIN_REFRESH_TOKEN]]
+        ];
+
+        $client->disableReboot();
+
+        $billingClientMock = $this->getMockBuilder(BillingClient::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['request', 'auth', 'register', 'refreshToken', 'getCurrent', 'getCourses',
+                'getCourse', 'payCourse', 'getTransactions'])
+            ->getMock();
+
+        // Гарантия, что заглушка не обратится к биллингу
+        $billingClientMock->method('request')
+            ->willThrowException(new Exception('Bad mock'));
+
+        $billingClientMock->method('auth')
+            ->willReturnCallback(static function (array $credentials) {
+                $email = $credentials['username'];
+                if (isset(self::$usersByEmail[$email])) {
+                    return self::$usersByEmail[$email][1];
+                }
+                throw new CustomUserMessageAuthenticationException('Неправильные логин или пароль');
+            });
+
+        $billingClientMock->method('register')
+            ->willReturnCallback(static function (array $credentials) use ($userToken2) {
+                $email = $credentials['username'];
+                if (isset(self::$usersByEmail[$email])) {
+                    throw new CustomUserMessageAuthenticationException('Пользователь с указанным email уже существует!');
+                }
+
+                $tokens = ['token' => $userToken2, 'refresh_token' => self::USER_REFRESH_TOKEN_2];
+                self::$usersByEmail[$email] = [$credentials['password'], $tokens];
+                return $tokens;
+            });
+
+        $billingClientMock->method('refreshToken')
+            ->willReturnCallback(static function (string $refreshToken) {
+                $users = array_filter(self::$usersByEmail, static function ($user, $email) use ($refreshToken) {
+                    return $user[1]['refresh_token'] === $refreshToken;
+                });
+
+                if (count($users) > 0) {
+                    return $users[0][1];
+                }
+                throw new BillingUnavailableException();
+            });
+
+        $billingClientMock->method('getCurrent')
+            ->willReturnMap([
+                [$userToken, new UserDto(self::USER_EMAIL, ['ROLE_USER'], 1000)],
+                [$userToken2 , new UserDto($newUserEmail, ['ROLE_USER'], 0)],
+                [$adminToken, new UserDto(self::ADMIN_EMAIL, ['ROLE_SUPER_ADMIN'], 0)],
+            ]);
+
+        $billingClientMock->method('getCourses')
+            ->willReturn(self::COURSES);
+
+        $coursesByCode = [];
+        foreach (self::COURSES as $course) {
+            $coursesByCode[$course['code']] = $course;
+        }
+
+        $billingClientMock->method('getCourse')
+            ->willReturnCallback(static function (string $code) use ($coursesByCode) {
+                return $coursesByCode[$code];
+            });
+
+        if (!$isMockFinal) {
+            return $billingClientMock;
+        }
+
+        $billingClientMock->method('payCourse')
+            ->willReturn([
+                'success' => false
+            ]);
+
+        $billingClientMock->method('getTransactions')
+            ->willReturn([]);
+
+        static::getContainer()->set(BillingClient::class, $billingClientMock);
+        return null;
+    }
+
+    private static function generateTestJwt(string $email): string
+    {
+        return 'header.' . base64_encode(json_encode([
+                'exp' => (new DateTime())->getTimestamp() + 10**6, // Во время теста не закончится
+                'username' => $email
+            ], JSON_THROW_ON_ERROR)) . '.trailer';
+    }
+
     // Только для дебага
     protected static function ddBody(Crawler $crawler): void
     {
-        dd($crawler->filter('body')->html());
+        var_dump($crawler->filter('body')->html());
     }
 }

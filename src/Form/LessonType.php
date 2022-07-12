@@ -16,17 +16,19 @@ class LessonType extends AbstractType
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder
-            ->add(
-                'course_id',
-                HiddenType::class,
-                [
-                    'data' => $options['course_id'],
-                    'mapped' => false
-                ]
-            )
-            ->add('name', TextType::class)
-            ->add('content', TextareaType::class)
-            ->add('serialNumber', NumberType::class);
+            ->add('course_id', HiddenType::class, [
+                'data' => $options['course_id'],
+                'mapped' => false
+            ])
+            ->add('name', TextType::class, [
+                'label' => 'Название'
+            ])
+            ->add('content', TextareaType::class, [
+                'label' => 'Содержание'
+            ])
+            ->add('serialNumber', NumberType::class, [
+                'label' => 'Порядковый номер'
+            ]);
     }
 
     public function configureOptions(OptionsResolver $resolver): void

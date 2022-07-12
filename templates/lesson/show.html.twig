@@ -15,5 +15,9 @@
             {{ include('lesson/_delete_form.html.twig') }}
         </div>
     {% endif %}
-    <div class="card mt-2 p-3">{{ lesson.content }}</div>
+    <div class="card mt-2 p-3">
+        {% for line in lesson.content|split("\n") %}
+            <div>{{ line }}</div>
+        {% endfor %}
+    </div>
 {% endblock %}

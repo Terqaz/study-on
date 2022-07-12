@@ -183,10 +183,17 @@ class CourseController extends AbstractController
      */
     public function edit(Request $request, Course $course, CourseRepository $courseRepository): Response
     {
-        $form = $this->createForm(CourseType::class, $course);
+        $billingCourse = $this->billingClient->getCourse($course->getCode());
+        $form = $this->createForm(CourseType::class, $course, [
+            'price' => $billingCourse['price'] ?? 0,
+            'type' => \App\Enum\CourseType::VALUES[$billingCourse['type']],
+        ]);
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
+            $price = $form->get('price')->getData();
+            $type = $form->get('type')->getData();
+
             $courseRepository->add($course);
             return $this->redirectToRoute('app_course_index', [], Response::HTTP_SEE_OTHER);
         }

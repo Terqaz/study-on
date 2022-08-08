@@ -10,6 +10,7 @@ use Symfony\Component\Form\Extension\Core\Type\TextareaType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
+use Symfony\Component\Validator\Constraints\NotNull;
 
 class CourseType extends AbstractType
 {
@@ -17,10 +18,16 @@ class CourseType extends AbstractType
     {
         $builder
             ->add('code', TextType::class, [
-                'label' => 'Код'
+                'label' => 'Код',
+                'constraints' => [
+                    new NotNull()
+                ]
             ])
             ->add('name', TextType::class, [
-                'label' => 'Название'
+                'label' => 'Название',
+                'constraints' => [
+                    new NotNull()
+                ]
             ])
             ->add('price', MoneyType::class, [
                 'mapped' => false,
@@ -28,7 +35,10 @@ class CourseType extends AbstractType
                 'currency' => 'RUB',
                 'scale' => 2,
                 'data' => $options['price'],
-                'help' => 'Для бесплатного курса цена игнорируется'
+                'help' => 'Для бесплатного курса цена игнорируется',
+                'constraints' => [
+                    new NotNull()
+                ]
             ])
             ->add('type', ChoiceType::class, [
                 'mapped' => false,
@@ -36,10 +46,13 @@ class CourseType extends AbstractType
                 'label' => 'Тип',
                 'data' => $options['type'],
                 'choices'  => [
-                    'Бесплатный' => \App\Enum\CourseType::FREE,
-                    'В аренду' => \App\Enum\CourseType::RENT,
-                    'Полный' => \App\Enum\CourseType::BUY,
+                    'Бесплатный' => \App\Enum\CourseType::FREE_NAME,
+                    'В аренду' => \App\Enum\CourseType::RENT_NAME,
+                    'Полный' => \App\Enum\CourseType::BUY_NAME,
                 ],
+                'constraints' => [
+                    new NotNull()
+                ]
             ])
             ->add('description', TextareaType::class, [
                 'required' => false,
@@ -53,10 +66,10 @@ class CourseType extends AbstractType
         $resolver->setDefaults([
             'data_class' => Course::class,
             'price' => 0.0,
-            'type' => \App\Enum\CourseType::FREE
+            'type' => \App\Enum\CourseType::FREE_NAME
         ]);
 
         $resolver->addAllowedTypes('price', ['int', 'float']);
-        $resolver->addAllowedTypes('type', 'int');
+        $resolver->addAllowedTypes('type', 'string');
     }
 }

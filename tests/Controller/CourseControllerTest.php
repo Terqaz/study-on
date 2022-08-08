@@ -3,6 +3,7 @@
 namespace App\Tests\Controller;
 
 use App\Entity\Course;
+use App\Enum\CourseType;
 use App\Enum\PaymentStatus;
 use App\Exception\BillingUnavailableException;
 use App\Exception\CourseAlreadyPaidException;
@@ -100,14 +101,18 @@ class CourseControllerTest extends AbstractTest
         self::assertFalse($form->has('course[id]'));
         self::assertTrue($form->has('course[code]'));
         self::assertTrue($form->has('course[name]'));
+        self::assertTrue($form->has('course[price]'));
+        self::assertTrue($form->has('course[type]'));
         self::assertTrue($form->has('course[description]'));
 
         // Если не указан код
         $crawler = $client->submitForm('Создать курс', [
             'course[name]' => 'Тестовый курс',
+            'course[price]' => 1,
+            'course[type]' => CourseType::BUY_NAME,
             'course[description]' => 'Описание тестового курса'
         ]);
-        $this->assertResponseCode(500);
+        $this->assertResponseCode(422);
 
         // Если не указано имя
         $client->back();
@@ -115,7 +120,7 @@ class CourseControllerTest extends AbstractTest
             'course[code]' => 'test',
             'course[description]' => 'Описание тестового курса'
         ]);
-        $this->assertResponseCode(500);
+        $this->assertResponseCode(422);
 
         // Если не указано описание
         $client->back();
@@ -142,7 +147,7 @@ class CourseControllerTest extends AbstractTest
             'course[name]' => 'Тестовый курс 3',
             'course[description]' => 'Описание тестового курса 3'
         ]);
-        $this->assertResponseCode(500);
+        $this->assertResponseCode(400);
 
         // В итоге добавилось 2 курса
         self::assertEquals($oldCount + 2, $courseRepository->count([]));
@@ -210,9 +215,11 @@ class CourseControllerTest extends AbstractTest
         $values = $form->getValues();
         $courseId = 1;
         $course = $courseRepository->find($courseId);
-        self::assertEquals($course->getCode(), $values['course[code]']);
-        self::assertEquals($course->getName(), $values['course[name]']);
-        self::assertEquals($course->getDescription(), $values['course[description]']);
+        self::assertSame($course->getCode(), $values['course[code]']);
+        self::assertSame($course->getName(), $values['course[name]']);
+        self::assertEquals(10, $values['course[price]']);
+        self::assertSame('rent', $values['course[type]']);
+        self::assertSame($course->getDescription(), $values['course[description]']);
 
         $code = 'test';
         $name = 'Тестовый курс';

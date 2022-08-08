@@ -299,7 +299,7 @@ abstract class AbstractTest extends WebTestCase
         $billingClientMock = $this->getMockBuilder(BillingClient::class)
             ->disableOriginalConstructor()
             ->onlyMethods(['request', 'auth', 'register', 'refreshToken', 'getCurrent', 'getCourses',
-                'getCourse', 'payCourse', 'getTransactions'])
+                'getCourse', 'payCourse', 'getTransactions', 'saveCourse'])
             ->getMock();
 
         // Гарантия, что заглушка не обратится к биллингу
@@ -370,6 +370,9 @@ abstract class AbstractTest extends WebTestCase
 
         $billingClientMock->method('getTransactions')
             ->willReturn([]);
+
+        $billingClientMock->method('saveCourse')
+            ->willReturn(true);
 
         static::getContainer()->set(BillingClient::class, $billingClientMock);
         return null;

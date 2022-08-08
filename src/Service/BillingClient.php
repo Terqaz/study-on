@@ -2,14 +2,18 @@
 
 namespace App\Service;
 
+use App\Dto\CourseDto;
 use App\Dto\UserDto;
 use App\Exception\BillingUnavailableException;
 use App\Exception\CourseAlreadyPaidException;
 use App\Exception\InsufficientFundsException;
+use App\Exception\ResourceAlreadyExistsException;
 use App\Exception\ResourceNotFoundException;
 use JMS\Serializer\Serializer;
 use JMS\Serializer\SerializerBuilder;
 use JsonException;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Security\Core\Exception\CustomUserMessageAuthenticationException;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
@@ -91,7 +95,7 @@ class BillingClient
             ['Authorization' => 'Bearer ' . $token]
         );
         if ($response['code'] === 401) {
-            throw new CustomUserMessageAuthenticationException(self::BAD_JWT_TOKEN);
+            throw new UnauthorizedHttpException(self::BAD_JWT_TOKEN);
         }
         if ($response['code'] >= 400) {
             throw new BillingUnavailableException();
@@ -184,7 +188,7 @@ class BillingClient
 
         switch ($response['code']) {
             case 401:
-                throw new CustomUserMessageAuthenticationException(self::BAD_JWT_TOKEN);
+                throw new UnauthorizedHttpException(self::BAD_JWT_TOKEN);
             case 404:
                 throw new ResourceNotFoundException();
             case 406:
@@ -232,13 +236,54 @@ class BillingClient
         );
 
         if ($response['code'] === 401) {
-            throw new CustomUserMessageAuthenticationException(self::BAD_JWT_TOKEN);
+            throw new UnauthorizedHttpException(self::BAD_JWT_TOKEN);
         }
         if ($response['code'] >= 400) {
             throw new BillingUnavailableException();
         }
 
         return $this->parseJsonResponse($response);
+    }
+
+    /**
+     * @throws ResourceNotFoundException
+     * @throws BillingUnavailableException
+     * @throws ResourceAlreadyExistsException
+     * @throws JsonException
+     */
+    public function saveCourse(string $token, CourseDto $course, string $code = null): bool
+    {
+        $path = '/courses';
+        if (null !== $code) {
+            $path .= "/$code";
+        }
+
+        $response = $this->jsonRequest(
+            self::POST,
+            $path,
+            [],
+            $course,
+            ['Authorization' => 'Bearer ' . $token]
+        );
+        switch ($response['code']) {
+            case 401:
+                throw new UnauthorizedHttpException(self::BAD_JWT_TOKEN);
+            case 403:
+                throw new AccessDeniedHttpException();
+            case 404:
+                throw new ResourceNotFoundException('Курс не найден');
+            case 409:
+                throw new ResourceAlreadyExistsException('Курс с данным кодом уже существует');
+            default:
+                break;
+        }
+
+        $body = $this->parseJsonResponse($response);
+
+        if ($response['code'] >= 400) {
+            throw new BillingUnavailableException($body['error']);
+        }
+        return $body['success'];
     }
 
     /**
@@ -262,7 +307,7 @@ class BillingClient
     /**
      * @throws JsonException
      */
-    public function parseJsonResponse(array $response, ?string $type = null)
+    protected function parseJsonResponse(array $response, ?string $type = null)
     {
         if (null === $type) {
             return json_decode($response['body'], true, 512, JSON_THROW_ON_ERROR);
@@ -274,16 +319,17 @@ class BillingClient
      * @throws BillingUnavailableException
      * @throws JsonException
      */
-    public function jsonRequest(
+    protected function jsonRequest(
         string $method,
         string $path,
         array  $parameters = [],
-        array  $data = [],
+        $data = [],
         array  $headers = []
     ): array {
         $headers['Accept'] = 'application/json';
         $headers['Content-Type'] = 'application/json';
-        return $this->request($method, $path, $parameters, json_encode($data, JSON_THROW_ON_ERROR), $headers);
+
+        return $this->request($method, $path, $parameters, $this->serializer->serialize($data, 'json'), $headers);
     }
 
     /**
@@ -295,7 +341,7 @@ class BillingClient
      * @return array - response code and body
      * @throws BillingUnavailableException
      */
-    public function request(
+    protected function request(
         string       $method,
         string       $path,
         array        $parameters = [],

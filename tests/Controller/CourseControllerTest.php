@@ -19,6 +19,9 @@ class CourseControllerTest extends AbstractTest
     public function testRedirectToCourses(): void
     {
         $client = static::getClient();
+
+        $this->mockBillingClient($client);
+
         $client->request('GET', '/');
         $this->assertResponseRedirect();
 
@@ -32,6 +35,8 @@ class CourseControllerTest extends AbstractTest
     {
         $client = static::getClient();
         $client->followRedirects();
+
+        $this->mockBillingClient($client);
 
         $crawler = $client->request('GET', '/courses');
         $this->assertResponseOk();
@@ -47,6 +52,8 @@ class CourseControllerTest extends AbstractTest
     {
         $client = static::getClient();
         $client->followRedirects();
+
+        $this->mockBillingClient($client);
 
         $client->request('GET', '/courses');
         $crawler = $client->clickLink('Пройти');

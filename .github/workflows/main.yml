@@ -1,0 +1,35 @@
+name: CI
+on:
+    push:
+        branches: [ "master" ]
+    workflow_dispatch:
+jobs:
+    build:
+        runs-on: ubuntu-20.04
+        steps:
+            - uses: actions/checkout@v3
+            - name: Install composer
+              run: composer install
+            - name: Show files
+              run: ls -la
+            - name: Setting Docker
+              run: |
+                  mkdir ~/.yarn
+                  docker network create study-onbilling_default
+                  docker-compose build
+                  docker-compose up -d
+                  docker-compose run -u root node yarn install
+                  docker-compose run -u root node yarn encore dev
+                  docker ps -a
+            - name: Setting test environment
+              run: |
+                  echo "DATABASE_URL=pgsql://pguser:pguser@postgres:5432/study_on_test" >> .env.test.local
+                  ls -la
+            - name: Create test DB and run
+              run: |
+                  docker ps -a
+                  docker-compose exec -T php bin/console doctrine:database:drop --force --env=test || true
+                  docker-compose exec -T php bin/console doctrine:database:create --env=test
+                  docker-compose exec -T php bin/console doctrine:migrations:migrate -n --env=test
+                  docker-compose exec -T php bin/console doctrine:fixtures:load -n --env=test
+                  docker-compose exec -T php bin/phpunit

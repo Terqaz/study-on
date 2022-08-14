@@ -8,6 +8,9 @@ jobs:
         runs-on: ubuntu-20.04
         steps:
             - uses: actions/checkout@v3
+            - name: Setting test environment 1
+              run: |
+                  echo "DATABASE_URL=pgsql://pguser:pguser@postgres:5432/study_on_billing_test" >> .env.test.local
             - name: Install composer
               run: composer install
             - name: Show files
@@ -21,9 +24,8 @@ jobs:
                   docker-compose run -u root node yarn install
                   docker-compose run -u root node yarn encore dev
                   docker ps -a
-            - name: Setting test environment
+            - name: Setting test environment 2
               run: |
-                  echo "DATABASE_URL=pgsql://pguser:pguser@postgres:5432/study_on_test" >> .env.test.local
                   ls -la
             - name: Create test DB and run
               run: |

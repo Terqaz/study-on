@@ -10,7 +10,7 @@ jobs:
             - uses: actions/checkout@v3
             - name: Setting test environment 1
               run: |
-                  echo "DATABASE_URL=pgsql://pguser:pguser@postgres:5432/study_on_billing_test" >> .env.test.local
+                  echo "DATABASE_URL=pgsql://pguser:pguser@study-on_postgres_1:5432/study_on" >> .env.test.local
             - name: Install composer
               run: composer install
             - name: Show files
